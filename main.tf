@@ -24,46 +24,72 @@ provider "azurerm" {
 }
 
 # ==============================================================================
-# Landing Zone Vending Module
+# Landing Zone Vending Module (for_each over landing_zones)
 # ==============================================================================
-# Provisions a complete Azure Landing Zone including:
+# Provisions complete Azure Landing Zones including:
 # - Subscription creation and management group association
 # - Virtual network with hub peering
 # - User-managed identity with OIDC federated credentials
 # - Role assignments for workload identity
 # - Budget with notification thresholds
+#
+# Each landing zone is defined in the landing_zones variable as a map entry.
 # ==============================================================================
 
 module "landing_zone" {
-  source = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.1.0"
+  source   = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.1.0"
+  for_each = var.landing_zones
 
   # Subscription Configuration
-  subscription_alias_enabled                        = var.subscription_alias_enabled
-  subscription_billing_scope                        = var.subscription_billing_scope
-  subscription_display_name                         = var.subscription_display_name
-  subscription_alias_name                           = var.subscription_alias_name
-  subscription_workload                             = var.subscription_workload
-  subscription_management_group_id                  = var.subscription_management_group_id
-  subscription_management_group_association_enabled = var.subscription_management_group_association_enabled
-  subscription_tags                                 = var.subscription_tags
+  subscription_alias_enabled                        = each.value.subscription_alias_enabled
+  subscription_billing_scope                        = var.common_subscription_billing_scope
+  subscription_display_name                         = each.value.subscription_display_name
+  subscription_alias_name                           = each.value.subscription_alias_name
+  subscription_workload                             = each.value.subscription_workload
+  subscription_management_group_id                  = var.common_subscription_management_group_id
+  subscription_management_group_association_enabled = each.value.subscription_management_group_association_enabled
+  subscription_tags                                 = merge(var.common_tags, each.value.subscription_tags)
 
   # Resource Groups
-  resource_group_creation_enabled = var.resource_group_creation_enabled
-  resource_groups                 = var.resource_groups
+  resource_group_creation_enabled = each.value.resource_group_creation_enabled
+  resource_groups                 = each.value.resource_groups
 
   # Role Assignments
-  role_assignment_enabled = var.role_assignment_enabled
-  role_assignments        = var.role_assignments
+  role_assignment_enabled = each.value.role_assignment_enabled
+  role_assignments        = each.value.role_assignments
 
-  # Virtual Network
-  virtual_network_enabled = var.virtual_network_enabled
-  virtual_networks        = var.virtual_networks
+  # Virtual Network (with common hub network resource ID fallback)
+  virtual_network_enabled = each.value.virtual_network_enabled
+  virtual_networks = {
+    for vnet_key, vnet in each.value.virtual_networks : vnet_key => merge(
+      vnet,
+      {
+        # Use LZ-specific hub if provided, otherwise fall back to common hub
+        hub_network_resource_id = vnet.hub_network_resource_id != "" ? vnet.hub_network_resource_id : var.common_hub_network_resource_id
+      }
+    )
+  }
 
-  # User-Managed Identities (UMI)
-  umi_enabled             = var.umi_enabled
-  user_managed_identities = var.user_managed_identities
+  # User-Managed Identities (UMI) with common GitHub org fallback
+  umi_enabled = each.value.umi_enabled
+  user_managed_identities = {
+    for umi_key, umi in each.value.user_managed_identities : umi_key => merge(
+      umi,
+      {
+        federated_credentials_github = {
+          for fed_key, fed in umi.federated_credentials_github : fed_key => merge(
+            fed,
+            {
+              # Use LZ-specific GitHub org if provided, otherwise fall back to common org
+              organization = fed.organization != "" ? fed.organization : var.common_github_organization
+            }
+          )
+        }
+      }
+    )
+  }
 
   # Budgets
-  budget_enabled = var.budget_enabled
-  budgets        = var.budgets
+  budget_enabled = each.value.budget_enabled
+  budgets        = each.value.budgets
 }

@@ -8,12 +8,12 @@
 tfvars_file_name = "example-app-prod"
 
 # REQUIRED: Subscription Configuration
-subscription_alias_enabled    = true
-subscription_billing_scope    = "PLACEHOLDER_BILLING_SCOPE" # Update with actual billing scope
-subscription_display_name     = "example-app (Production)"
-subscription_alias_name       = "sub-example-app-prod"
-subscription_workload         = "Production"
-subscription_management_group_id = "Corp"
+subscription_alias_enabled                        = true
+subscription_billing_scope                        = "PLACEHOLDER_BILLING_SCOPE" # Update with actual billing scope
+subscription_display_name                         = "example-app (Production)"
+subscription_alias_name                           = "sub-example-app-prod"
+subscription_workload                             = "Production"
+subscription_management_group_id                  = "Corp"
 subscription_management_group_association_enabled = true
 
 subscription_tags = {

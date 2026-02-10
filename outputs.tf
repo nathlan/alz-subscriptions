@@ -2,38 +2,31 @@
 # Outputs from Landing Zone Vending Module
 # ==============================================================================
 
-output "subscription_id" {
-  description = "The subscription ID of the vended landing zone"
-  value       = module.landing_zone.subscription_id
+output "landing_zones" {
+  description = "Map of all landing zone outputs indexed by landing zone name"
+  value = {
+    for lz_key, lz in module.landing_zone : lz_key => {
+      subscription_id              = lz.subscription_id
+      subscription_resource_id     = lz.subscription_resource_id
+      virtual_network_resource_ids = lz.virtual_network_resource_ids
+      resource_group_resource_ids  = lz.resource_group_resource_ids
+      umi_principal_ids            = lz.umi_principal_ids
+      budget_resource_ids          = lz.budget_resource_ids
+    }
+  }
 }
 
-output "subscription_resource_id" {
-  description = "The full Azure resource ID of the subscription"
-  value       = module.landing_zone.subscription_resource_id
+output "landing_zone_subscription_ids" {
+  description = "Map of landing zone names to subscription IDs"
+  value = {
+    for lz_key, lz in module.landing_zone : lz_key => lz.subscription_id
+  }
 }
 
-output "virtual_network_resource_ids" {
-  description = "Resource IDs of created virtual networks"
-  value       = module.landing_zone.virtual_network_resource_ids
-}
-
-output "resource_group_resource_ids" {
-  description = "Resource IDs of created resource groups"
-  value       = module.landing_zone.resource_group_resource_ids
-}
-
-output "umi_client_ids" {
-  description = "Client IDs of user-managed identities (for OIDC authentication)"
-  value       = module.landing_zone.umi_client_ids
-  sensitive   = true
-}
-
-output "umi_principal_ids" {
-  description = "Principal IDs of user-managed identities (for role assignments)"
-  value       = module.landing_zone.umi_principal_ids
-}
-
-output "budget_resource_ids" {
-  description = "Resource IDs of created budgets"
-  value       = module.landing_zone.budget_resource_ids
+output "landing_zone_umi_client_ids" {
+  description = "Map of landing zone names to UMI client IDs (for OIDC authentication)"
+  value = {
+    for lz_key, lz in module.landing_zone : lz_key => lz.umi_client_ids
+  }
+  sensitive = true
 }

@@ -8,12 +8,12 @@
 tfvars_file_name = "example-api-dev"
 
 # REQUIRED: Subscription Configuration
-subscription_alias_enabled    = true
-subscription_billing_scope    = "PLACEHOLDER_BILLING_SCOPE" # Update with actual billing scope
-subscription_display_name     = "example-api (DevTest)"
-subscription_alias_name       = "sub-example-api-dev"
-subscription_workload         = "DevTest"
-subscription_management_group_id = "Corp"
+subscription_alias_enabled                        = true
+subscription_billing_scope                        = "PLACEHOLDER_BILLING_SCOPE" # Update with actual billing scope
+subscription_display_name                         = "example-api (DevTest)"
+subscription_alias_name                           = "sub-example-api-dev"
+subscription_workload                             = "DevTest"
+subscription_management_group_id                  = "Corp"
 subscription_management_group_association_enabled = true
 
 subscription_tags = {

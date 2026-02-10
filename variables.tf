@@ -2,123 +2,130 @@
 # Input Variables for Landing Zone Vending
 # ==============================================================================
 
-variable "tfvars_file_name" {
+# ==============================================================================
+# Common Variables (Applied to All Landing Zones)
+# ==============================================================================
+
+variable "common_subscription_billing_scope" {
   type        = string
-  description = "Name of the tfvars file (without extension) for state key"
+  description = "Common billing scope for all subscriptions (Enterprise Agreement enrollment account ID)"
 }
 
-# Subscription Configuration
-variable "subscription_alias_enabled" {
-  type        = bool
-  description = "Enable subscription alias creation"
-  default     = true
-}
-
-variable "subscription_billing_scope" {
+variable "common_subscription_management_group_id" {
   type        = string
-  description = "Billing scope for subscription creation (Enterprise Agreement enrollment account ID)"
-}
-
-variable "subscription_display_name" {
-  type        = string
-  description = "Display name for the subscription"
-}
-
-variable "subscription_alias_name" {
-  type        = string
-  description = "Alias name for the subscription (must be unique)"
-}
-
-variable "subscription_workload" {
-  type        = string
-  description = "Workload type (Production or DevTest)"
-  default     = "Production"
-
-  validation {
-    condition     = contains(["Production", "DevTest"], var.subscription_workload)
-    error_message = "Subscription workload must be either 'Production' or 'DevTest'."
-  }
-}
-
-variable "subscription_management_group_id" {
-  type        = string
-  description = "Management group ID to associate subscription with"
+  description = "Common management group ID to associate all subscriptions with"
   default     = "Corp"
 }
 
-variable "subscription_management_group_association_enabled" {
-  type        = bool
-  description = "Enable management group association"
-  default     = true
+variable "common_hub_network_resource_id" {
+  type        = string
+  description = "Common hub virtual network resource ID for peering all spoke networks"
+  default     = ""
 }
 
-variable "subscription_tags" {
+variable "common_location" {
+  type        = string
+  description = "Common Azure region for all resources"
+  default     = "uksouth"
+}
+
+variable "common_github_organization" {
+  type        = string
+  description = "Common GitHub organization for OIDC federated credentials"
+  default     = "nathlan"
+}
+
+variable "common_tags" {
   type        = map(string)
-  description = "Tags to apply to the subscription"
-  default     = {}
+  description = "Common tags to apply to all subscriptions (will be merged with LZ-specific tags)"
+  default = {
+    ManagedBy = "Terraform"
+  }
 }
 
-# Resource Groups
-variable "resource_group_creation_enabled" {
-  type        = bool
-  description = "Enable resource group creation"
-  default     = true
-}
+# ==============================================================================
+# Landing Zones Definition (Array of Objects)
+# ==============================================================================
 
-variable "resource_groups" {
-  type        = map(any)
-  description = "Resource groups to create in the subscription"
-  default     = {}
-}
+variable "landing_zones" {
+  type = map(object({
+    # Subscription Configuration
+    subscription_display_name                         = string
+    subscription_alias_name                           = string
+    subscription_workload                             = string
+    subscription_alias_enabled                        = optional(bool, true)
+    subscription_management_group_association_enabled = optional(bool, true)
+    subscription_tags                                 = optional(map(string), {})
 
-# Role Assignments
-variable "role_assignment_enabled" {
-  type        = bool
-  description = "Enable role assignments"
-  default     = false
-}
+    # Resource Groups
+    resource_group_creation_enabled = optional(bool, true)
+    resource_groups = optional(map(object({
+      name     = string
+      location = string
+    })), {})
 
-variable "role_assignments" {
-  type        = map(any)
-  description = "Role assignments to create"
-  default     = {}
-}
+    # Virtual Network
+    virtual_network_enabled = optional(bool, true)
+    virtual_networks = optional(map(object({
+      name                    = string
+      resource_group_key      = string
+      address_space           = list(string)
+      location                = string
+      hub_peering_enabled     = optional(bool, true)
+      hub_network_resource_id = optional(string, "")
+      subnets = optional(map(object({
+        name             = string
+        address_prefixes = list(string)
+      })), {})
+    })), {})
 
-# Virtual Network
-variable "virtual_network_enabled" {
-  type        = bool
-  description = "Enable virtual network creation"
-  default     = true
-}
+    # User-Managed Identities
+    umi_enabled = optional(bool, false)
+    user_managed_identities = optional(map(object({
+      name               = string
+      location           = string
+      resource_group_key = string
+      role_assignments = optional(map(object({
+        scope_resource_id          = string
+        role_definition_id_or_name = string
+      })), {})
+      federated_credentials_github = optional(map(object({
+        name         = string
+        organization = optional(string, "")
+        repository   = string
+        entity       = string
+      })), {})
+    })), {})
 
-variable "virtual_networks" {
-  type        = map(any)
-  description = "Virtual networks to create with hub peering"
-  default     = {}
-}
+    # Role Assignments
+    role_assignment_enabled = optional(bool, false)
+    role_assignments        = optional(map(any), {})
 
-# User-Managed Identities
-variable "umi_enabled" {
-  type        = bool
-  description = "Enable user-managed identity creation"
-  default     = false
-}
+    # Budgets
+    budget_enabled = optional(bool, false)
+    budgets = optional(map(object({
+      name              = string
+      amount            = number
+      time_grain        = string
+      time_period_start = string
+      time_period_end   = string
+      notifications = optional(map(object({
+        enabled        = bool
+        operator       = string
+        threshold      = number
+        contact_emails = list(string)
+        threshold_type = string
+      })), {})
+    })), {})
+  }))
 
-variable "user_managed_identities" {
-  type        = map(any)
-  description = "User-managed identities with OIDC federated credentials"
-  default     = {}
-}
+  description = "Map of landing zones to provision. Each key is the landing zone name used for state file naming."
 
-# Budgets
-variable "budget_enabled" {
-  type        = bool
-  description = "Enable budget creation"
-  default     = false
-}
-
-variable "budgets" {
-  type        = map(any)
-  description = "Budgets with notification thresholds"
-  default     = {}
+  validation {
+    condition = alltrue([
+      for lz_key, lz in var.landing_zones :
+      contains(["Production", "DevTest"], lz.subscription_workload)
+    ])
+    error_message = "All landing zone subscription_workload values must be either 'Production' or 'DevTest'."
+  }
 }

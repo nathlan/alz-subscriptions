@@ -36,38 +36,30 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Apply Landing Zones
+      - name: Apply All Landing Zones
         id: apply
         run: |
           echo "# Terraform Apply Results" > apply-results.md
           echo "" >> apply-results.md
+          echo "## 🚀 Applying All Landing Zones" >> apply-results.md
+          echo "" >> apply-results.md
+          echo "All landing zones are defined in \`terraform.tfvars\` and applied together." >> apply-results.md
+          echo "" >> apply-results.md
           
-          TFVARS_FILES=$(find landing-zones -name "*.tfvars" -type f | sort)
-          
-          if [ -z "$TFVARS_FILES" ]; then
-            echo "⚠️ No .tfvars files found in landing-zones/" >> apply-results.md
-            exit 0
+          if terraform apply -auto-approve -no-color 2>&1 | tee apply-output.txt; then
+            echo "✅ **Status:** Success" >> apply-results.md
+          else
+            echo "❌ **Status:** Failed" >> apply-results.md
           fi
           
-          for tfvars_file in $TFVARS_FILES; do
-            echo "## 🚀 Applying: \`$tfvars_file\`" >> apply-results.md
-            echo "" >> apply-results.md
-            
-            if terraform apply -auto-approve -var-file="$tfvars_file" -no-color 2>&1 | tee apply-output.txt; then
-              echo "✅ **Status:** Success" >> apply-results.md
-            else
-              echo "❌ **Status:** Failed" >> apply-results.md
-            fi
-            
-            echo "" >> apply-results.md
-            echo "<details><summary>View Output</summary>" >> apply-results.md
-            echo "" >> apply-results.md
-            echo '```' >> apply-results.md
-            cat apply-output.txt >> apply-results.md
-            echo '```' >> apply-results.md
-            echo "</details>" >> apply-results.md
-            echo "" >> apply-results.md
-          done
+          echo "" >> apply-results.md
+          echo "<details><summary>View Output</summary>" >> apply-results.md
+          echo "" >> apply-results.md
+          echo '```' >> apply-results.md
+          cat apply-output.txt >> apply-results.md
+          echo '```' >> apply-results.md
+          echo "</details>" >> apply-results.md
+          echo "" >> apply-results.md
           
           cat apply-results.md >> $GITHUB_STEP_SUMMARY
 
