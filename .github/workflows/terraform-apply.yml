@@ -144,13 +144,12 @@ jobs:
         run: |
           echo "## 🚀 Apply Result: ${{ matrix.workload }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Var file:** \`${{ matrix.tfvars-file }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Status:** ${{ steps.apply.outcome == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "<details><summary>View Output</summary>" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          cat apply-output-${{ matrix.workload }}.txt >> $GITHUB_STEP_SUMMARY
+          cat terraform/apply-output-${{ matrix.workload }}.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "</details>" >> $GITHUB_STEP_SUMMARY
 
