@@ -303,7 +303,7 @@ jobs:
         with:
           script: |
             const workloadCount = ${{ needs.discover.outputs.workload-count }};
-            const matrix = ${{ needs.discover.outputs.matrix }};
+            const matrix = JSON.parse('${{ toJson(needs.discover.outputs.matrix) }}');
             const planResult = '${{ needs.plan.result }}';
 
             let comment = '## 🔍 Terraform Plan Summary\n\n';
