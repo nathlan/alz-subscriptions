@@ -100,7 +100,9 @@ jobs:
 
     strategy:
       # Sequential by default, parallel if explicitly requested
-      max-parallel: ${{ github.event.inputs.parallel == true && 10 || 1 }}
+      # Note: Input is boolean type, but we use string comparison for compatibility
+      # with non-workflow_dispatch triggers where input is undefined
+      max-parallel: ${{ github.event.inputs.parallel == 'true' && 10 || 1 }}
       fail-fast: false
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
 
