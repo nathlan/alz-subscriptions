@@ -170,7 +170,7 @@ The workflows will automatically discover and process the new workload.
 
 ### Why Not Direct Reusable Workflow Calls?
 
-The centralized reusable workflow at `nathlan/.github-workflows/.github/workflows/azure-terraform-deploy.yml@main` (note: the repository is named `.github-workflows`, and the workflow is in its `.github/workflows` directory) doesn't support:
+The centralized reusable workflow (located in the `nathlan/.github-workflows` repository at path `.github/workflows/azure-terraform-deploy.yml@main`) expects single-deployment pattern, but this repository needs multi-workload support. The reusable workflow doesn't support:
 - Passing different var files per matrix item
 - Dynamic input per matrix iteration
 

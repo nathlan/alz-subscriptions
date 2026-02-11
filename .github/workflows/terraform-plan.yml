@@ -105,6 +105,8 @@ jobs:
       - name: Terraform Format Check
         id: fmt
         run: terraform fmt -check -recursive
+        # Continue on error to allow reporting via PR comment
+        # Follows centralized workflow pattern
         continue-on-error: true
 
       - name: Terraform Init

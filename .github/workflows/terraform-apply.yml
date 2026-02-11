@@ -100,7 +100,7 @@ jobs:
 
     strategy:
       # Sequential by default, parallel if explicitly requested
-      max-parallel: ${{ (github.event.inputs.parallel == 'true') && 10 || 1 }}
+      max-parallel: ${{ github.event.inputs.parallel == true && 10 || 1 }}
       fail-fast: false
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
 
