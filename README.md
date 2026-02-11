@@ -16,8 +16,7 @@ This repository is a standard Azure Landing Zone workload repository that:
 .
 ├── .github/
 │   └── workflows/
-│       ├── terraform-plan.yml   # Child workflow: plan on PR
-│       └── terraform-apply.yml  # Child workflow: apply on merge
+│       └── terraform-deploy.yml  # Child workflow: plan on PR, apply on merge
 ├── terraform/
 │   ├── main.tf                  # Root module calling LZ vending module
 │   ├── variables.tf             # Input variable definitions
@@ -34,16 +33,17 @@ This repository uses **child workflows** that call the reusable parent workflow 
 
 1. **Make Changes**: Update `terraform/terraform.tfvars` or Terraform code in `terraform/`
 2. **Create PR**: Open a pull request with your changes
-3. **Automated Plan**: The `terraform-plan.yml` workflow runs, calling the reusable parent workflow to execute `terraform plan`
+3. **Automated Plan**: The `terraform-deploy.yml` workflow runs on PR, calling the reusable parent workflow to execute `terraform plan`
 4. **Review**: Platform team reviews the plan output and configuration changes
-5. **Merge**: PR merge triggers `terraform-apply.yml` workflow
+5. **Merge**: PR merge triggers `terraform-deploy.yml` workflow again
 6. **Deploy**: The reusable parent workflow executes `terraform apply` to provision infrastructure
 
 ### Workflow Architecture
 
-Both workflows call the centralized parent workflow:
+The workflow calls the centralized parent workflow:
 - **Parent Workflow**: `nathlan/.github-workflows/.github/workflows/azure-terraform-deploy.yml@main`
-- **Child Workflows**: Local `.github/workflows/terraform-*.yml` files configure and invoke the parent
+- **Child Workflow**: Local `.github/workflows/terraform-deploy.yml` configures and invokes the parent
+- **Triggers**: Pull requests (plan), pushes to main (apply), manual dispatch
 - **Benefits**: Consistent deployment logic, centralized updates, reduced duplication
 
 ## Usage
