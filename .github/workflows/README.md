@@ -309,7 +309,7 @@ ls -la landing-zones/*.tfvars
 **Solution**:
 1. Check discovery job output
 2. Verify validation/security jobs passed
-3. Review conditional: `if: needs.discover.outputs.workload-count > 0`
+3. Review conditional: `if: needs.discover.outputs.workload-count != '0'`
 
 ## Future Enhancements
 
