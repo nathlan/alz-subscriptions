@@ -116,3 +116,35 @@ For questions or issues:
 - **LZ Vending Module**: `nathlan/terraform-azurerm-landing-zone-vending` - Private Terraform module for landing zone provisioning
 - **Reusable Workflows**: `nathlan/.github-workflows` - Centralized GitHub Actions workflows for Terraform deployments
 - **Workload Template**: `nathlan/alz-workload-template` - Template repository for creating new workload repos
+
+## Agent Instructions Assessment
+
+This repository has been assessed for compatibility with the `alz-vending` orchestrator agent. The assessment identified critical misalignments between the agent's instructions and the repository's actual architecture.
+
+### Assessment Documents
+
+| Document | Purpose |
+|----------|---------|
+| [ASSESSMENT_SUMMARY.md](ASSESSMENT_SUMMARY.md) | **Start here** - Executive summary of findings and recommendations |
+| [AGENT_ASSESSMENT.md](AGENT_ASSESSMENT.md) | Detailed analysis of all 6 critical misalignments |
+| [CORRECTED_AGENT_INSTRUCTIONS.md](CORRECTED_AGENT_INSTRUCTIONS.md) | Production-ready replacement agent instructions |
+| [CONFIGURATION_REFERENCE.md](CONFIGURATION_REFERENCE.md) | Configuration values extracted from the repository |
+
+### Key Findings
+
+⚠️ **Status:** Agent instructions are NOT aligned with the repository architecture.
+
+**Critical Issues:**
+1. Instructions assume file-per-landing-zone, repo uses map-based configuration
+2. Instructions reference outdated module version (v1.0.3 vs actual v1.0.4)
+3. Instructions generate full CIDR notation, repo expects prefix sizes only
+
+**Recommendation:** Use `CORRECTED_AGENT_INSTRUCTIONS.md` for agent deployment.
+
+### For Agent Developers
+
+If you're implementing the `alz-vending` agent:
+1. Read [ASSESSMENT_SUMMARY.md](ASSESSMENT_SUMMARY.md) first (3 min read)
+2. Use [CORRECTED_AGENT_INSTRUCTIONS.md](CORRECTED_AGENT_INSTRUCTIONS.md) as your agent instructions
+3. Reference [CONFIGURATION_REFERENCE.md](CONFIGURATION_REFERENCE.md) for configuration values
+4. See [AGENT_ASSESSMENT.md](AGENT_ASSESSMENT.md) for detailed technical analysis
