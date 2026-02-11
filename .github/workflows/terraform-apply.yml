@@ -1,10 +1,29 @@
 name: Terraform Apply
 
+# ============================================================================
+# MULTI-WORKLOAD DEPLOYMENT WORKFLOW
+# ============================================================================
+# This workflow discovers all .tfvars files in the landing-zones/ directory
+# and applies each workload sequentially or in parallel, following the
+# centralized deployment patterns while maintaining multi-workload capability.
+#
+# Architecture:
+# 1. Discovery job finds all .tfvars files
+# 2. Apply jobs process each workload (with environment protection)
+# 3. Summary job aggregates results and posts to tracking issues
+# ============================================================================
+
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      parallel:
+        description: 'Deploy workloads in parallel'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -12,11 +31,79 @@ permissions:
   issues: write
 
 jobs:
-  apply:
-    name: Apply Terraform
+  # ============================================================================
+  # Job 1: Discovery - Find all .tfvars files to process
+  # ============================================================================
+  discover:
+    name: Discover Workloads
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      workload-count: ${{ steps.set-matrix.outputs.count }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Discover tfvars files
+        id: set-matrix
+        run: |
+          # Find all .tfvars files in landing-zones directory
+          tfvars_files=$(find landing-zones -name "*.tfvars" -type f | sort)
+
+          if [ -z "$tfvars_files" ]; then
+            echo "No .tfvars files found in landing-zones directory"
+            echo "matrix={\"include\":[]}" >> $GITHUB_OUTPUT
+            echo "count=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Build JSON array for matrix
+          matrix_json="{"
+          matrix_json+="\"include\":["
+
+          first=true
+          count=0
+          for tfvars_file in $tfvars_files; do
+            workload_name=$(basename "$tfvars_file" .tfvars)
+
+            if [ "$first" = false ]; then
+              matrix_json+=","
+            fi
+            first=false
+
+            matrix_json+="{"
+            matrix_json+="\"workload\":\"$workload_name\","
+            matrix_json+="\"tfvars-file\":\"$tfvars_file\""
+            matrix_json+="}"
+
+            count=$((count + 1))
+          done
+
+          matrix_json+="]}"
+
+          echo "matrix=$matrix_json" >> $GITHUB_OUTPUT
+          echo "count=$count" >> $GITHUB_OUTPUT
+
+          echo "Found $count workload(s) to deploy:"
+          echo "$matrix_json" | jq '.'
+
+  # ============================================================================
+  # Job 2: Apply - Deploy each workload with environment protection
+  # ============================================================================
+  apply:
+    name: Apply (${{ matrix.workload }})
+    runs-on: ubuntu-latest
+    needs: discover
+    if: needs.discover.outputs.workload-count > 0
     environment: azure-landing-zones
-    
+
+    strategy:
+      # Sequential by default, parallel if explicitly requested
+      max-parallel: ${{ github.event.inputs.parallel == 'true' && 10 || 1 }}
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,6 +112,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.0
+          terraform_wrapper: false
 
       - name: Azure Login (OIDC)
         uses: azure/login@v2
@@ -35,41 +123,119 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true
 
-      - name: Apply Landing Zones
+      - name: Terraform Apply for ${{ matrix.workload }}
         id: apply
         run: |
-          echo "# Terraform Apply Results" > apply-results.md
-          echo "" >> apply-results.md
-          
-          TFVARS_FILES=$(find landing-zones -name "*.tfvars" -type f | sort)
-          
-          if [ -z "$TFVARS_FILES" ]; then
-            echo "⚠️ No .tfvars files found in landing-zones/" >> apply-results.md
-            exit 0
-          fi
-          
-          for tfvars_file in $TFVARS_FILES; do
-            echo "## 🚀 Applying: \`$tfvars_file\`" >> apply-results.md
-            echo "" >> apply-results.md
-            
-            if terraform apply -auto-approve -var-file="$tfvars_file" -no-color 2>&1 | tee apply-output.txt; then
-              echo "✅ **Status:** Success" >> apply-results.md
-            else
-              echo "❌ **Status:** Failed" >> apply-results.md
+          echo "Applying workload: ${{ matrix.workload }}"
+          echo "Using var file: ${{ matrix.tfvars-file }}"
+
+          terraform apply \
+            -auto-approve \
+            -var-file="${{ matrix.tfvars-file }}" \
+            -no-color \
+            -input=false 2>&1 | tee apply-output-${{ matrix.workload }}.txt
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true
+
+      - name: Upload Apply Output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apply-output-${{ matrix.workload }}
+          path: apply-output-${{ matrix.workload }}.txt
+          retention-days: 90
+
+      - name: Generate Apply Summary
+        if: always()
+        run: |
+          echo "## 🚀 Apply Result: ${{ matrix.workload }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Var file:** \`${{ matrix.tfvars-file }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ steps.apply.outcome == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>View Output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat apply-output-${{ matrix.workload }}.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Job 3: Summary - Aggregate results and notify
+  # ============================================================================
+  summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [discover, apply]
+    if: always() && needs.discover.outputs.workload-count > 0
+    permissions:
+      issues: write
+
+    steps:
+      - name: Download All Apply Outputs
+        uses: actions/download-artifact@v4
+        with:
+          path: apply-outputs
+
+      - name: Generate Summary Report
+        id: summary
+        run: |
+          echo "# 🚀 Terraform Apply Results" > summary-report.md
+          echo "" >> summary-report.md
+          echo "**Commit:** ${{ github.sha }}" >> summary-report.md
+          echo "**Workflow:** [${{ github.workflow }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> summary-report.md
+          echo "**Triggered by:** @${{ github.actor }}" >> summary-report.md
+          echo "" >> summary-report.md
+          echo "---" >> summary-report.md
+          echo "" >> summary-report.md
+
+          # Process each workload's output
+          for output_dir in apply-outputs/*/; do
+            if [ -d "$output_dir" ]; then
+              workload=$(basename "$output_dir" | sed 's/apply-output-//')
+              output_file="$output_dir/apply-output-${workload}.txt"
+
+              echo "## Workload: \`$workload\`" >> summary-report.md
+              echo "" >> summary-report.md
+
+              if [ -f "$output_file" ]; then
+                # Check if apply was successful (simple heuristic)
+                if grep -q "Apply complete!" "$output_file"; then
+                  echo "✅ **Status:** Success" >> summary-report.md
+                else
+                  echo "❌ **Status:** Failed" >> summary-report.md
+                fi
+
+                echo "" >> summary-report.md
+                echo "<details><summary>View Output</summary>" >> summary-report.md
+                echo "" >> summary-report.md
+                echo '```' >> summary-report.md
+                cat "$output_file" >> summary-report.md
+                echo '```' >> summary-report.md
+                echo "</details>" >> summary-report.md
+              else
+                echo "⚠️ **Status:** No output file found" >> summary-report.md
+              fi
+
+              echo "" >> summary-report.md
             fi
-            
-            echo "" >> apply-results.md
-            echo "<details><summary>View Output</summary>" >> apply-results.md
-            echo "" >> apply-results.md
-            echo '```' >> apply-results.md
-            cat apply-output.txt >> apply-results.md
-            echo '```' >> apply-results.md
-            echo "</details>" >> apply-results.md
-            echo "" >> apply-results.md
           done
-          
-          cat apply-results.md >> $GITHUB_STEP_SUMMARY
+
+          echo "---" >> summary-report.md
+          echo "" >> summary-report.md
+          echo "*Automated deployment from \`main\` branch*" >> summary-report.md
+
+          # Add to job summary
+          cat summary-report.md >> $GITHUB_STEP_SUMMARY
 
       - name: Post Results to Tracking Issues
         if: always()
@@ -77,33 +243,29 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            
-            if (!fs.existsSync('apply-results.md')) {
-              console.log('No results file found');
+
+            if (!fs.existsSync('summary-report.md')) {
+              console.log('No summary report found');
               return;
             }
-            
-            const results = fs.readFileSync('apply-results.md', 'utf8');
-            
+
+            const summary = fs.readFileSync('summary-report.md', 'utf8');
+
+            // Find all open issues with subscription-tracking label
             const { data: issues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
               labels: 'subscription-tracking'
             });
-            
-            const comment = `## 🤖 Terraform Apply Completed
-            
-            **Workflow:** [${context.workflow}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
-            **Commit:** ${context.sha.substring(0, 7)}
-            **Triggered by:** @${context.actor}
-            
-            ${results}
-            
-            ---
-            *Automated deployment from \`main\` branch*`;
-            
+
+            console.log(`Found ${issues.length} tracking issue(s)`);
+
+            const comment = `## 🤖 Terraform Apply Completed\n\n${summary}`;
+
+            // Post comment to each tracking issue
             for (const issue of issues) {
+              console.log(`Posting to issue #${issue.number}`);
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
