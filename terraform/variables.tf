@@ -2,11 +2,6 @@
 # Input Variables for Landing Zone Vending
 # ==============================================================================
 
-variable "tfvars_file_name" {
-  type        = string
-  description = "Name of the tfvars file (without extension) for state key"
-}
-
 # Subscription Configuration
 variable "subscription_alias_enabled" {
   type        = bool

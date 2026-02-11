@@ -4,9 +4,6 @@
 # This is a reference example for a production workload
 # ==============================================================================
 
-# REQUIRED: State file name (must match workload name)
-tfvars_file_name = "example-app-prod"
-
 # REQUIRED: Subscription Configuration
 subscription_alias_enabled    = true
 subscription_billing_scope    = "PLACEHOLDER_BILLING_SCOPE" # Update with actual billing scope

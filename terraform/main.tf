@@ -3,8 +3,6 @@
 # ==============================================================================
 # This root module calls the private LZ vending module to provision Corp
 # landing zones with subscription, networking, identity, and budgets.
-#
-# Each landing zone is defined in a separate .tfvars file in landing-zones/
 # ==============================================================================
 
 terraform {
