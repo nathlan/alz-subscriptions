@@ -3,12 +3,10 @@
 # ==============================================================================
 # This root module calls the private LZ vending module to provision Corp
 # landing zones with subscription, networking, identity, and budgets.
-#
-# Each landing zone is defined in a separate .tfvars file in landing-zones/
 # ==============================================================================
 
 terraform {
-  required_version = ">= 1.9.0"
+  required_version = ">= 1.10.0"
 
   required_providers {
     azurerm = {
@@ -35,7 +33,7 @@ provider "azurerm" {
 # ==============================================================================
 
 module "landing_zone" {
-  source = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.1.0"
+  source = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.0.2"
 
   # Subscription Configuration
   subscription_alias_enabled                        = var.subscription_alias_enabled
