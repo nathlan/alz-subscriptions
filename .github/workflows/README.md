@@ -208,12 +208,15 @@ terraform {
     resource_group_name  = "terraform-state-rg"
     storage_account_name = "tfstate<uniqueid>"
     container_name       = "tfstate"
-    key                  = "alz-subscriptions.tfstate"  # Default key
+    key                  = "alz-subscriptions.tfstate"
   }
 }
 ```
 
-The workflows automatically append workload names to state keys to maintain separate state per workload.
+**Note**: All workloads currently share the same state file. For isolated state per workload, you can either:
+1. Configure separate backends in each `.tfvars` file using `-backend-config` flags
+2. Use Terraform workspaces
+3. Modify the workflows to dynamically set state keys per workload (not currently implemented)
 
 ## Monitoring & Debugging
 
@@ -269,10 +272,12 @@ Each PR receives:
 
 ### State Management
 
-- Each workload gets its own state file
-- State key pattern: `{workload-name}.tfstate`
-- Prevents state conflicts between workloads
-- Enables independent workload management
+- All workloads currently share the same Terraform state file
+- For production use, consider implementing one of:
+  - **Option 1**: Separate backends per workload with `-backend-config` in workflows
+  - **Option 2**: Terraform workspaces (one per workload)
+  - **Option 3**: Separate state files using dynamic state key configuration
+- Evaluate based on your organization's state management preferences
 
 ## Troubleshooting
 

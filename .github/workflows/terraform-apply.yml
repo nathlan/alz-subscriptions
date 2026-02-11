@@ -95,12 +95,12 @@ jobs:
     name: Apply (${{ matrix.workload }})
     runs-on: ubuntu-latest
     needs: discover
-    if: needs.discover.outputs.workload-count > 0
+    if: needs.discover.outputs.workload-count != '0'
     environment: azure-landing-zones
 
     strategy:
       # Sequential by default, parallel if explicitly requested
-      max-parallel: ${{ github.event.inputs.parallel == 'true' && 10 || 1 }}
+      max-parallel: ${{ fromJSON(github.event.inputs.parallel || 'false') && 10 || 1 }}
       fail-fast: false
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
 
@@ -176,7 +176,7 @@ jobs:
     name: Deployment Summary
     runs-on: ubuntu-latest
     needs: [discover, apply]
-    if: always() && needs.discover.outputs.workload-count > 0
+    if: always() && needs.discover.outputs.workload-count != '0'
     permissions:
       issues: write
 
