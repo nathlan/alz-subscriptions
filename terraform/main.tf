@@ -33,7 +33,7 @@ provider "azurerm" {
 # ==============================================================================
 
 module "landing_zone" {
-  source = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.1.0"
+  source = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.0.2"
 
   # Subscription Configuration
   subscription_alias_enabled                        = var.subscription_alias_enabled
