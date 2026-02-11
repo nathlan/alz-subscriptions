@@ -2,20 +2,19 @@
 
 ## Overview
 
-This repository implements a **multi-workload deployment pattern** that follows the centralized workflow architecture from `alz-workload-template`, adapted for managing multiple Azure Landing Zones through individual `.tfvars` files.
+This repository implements a **single-workload deployment pattern** that follows the centralized workflow architecture from `alz-workload-template`, managing a single Azure Landing Zone through standard Terraform configuration in the `terraform/` directory.
 
 ## Architecture
 
-### Child Workflow Pattern (Adapted)
+### Standard Terraform Pattern
 
-Our workflows demonstrate reuse of the centralized patterns from `nathlan/.github-workflows` while handling the unique requirement of processing multiple workloads:
+Our workflows follow the standard Terraform directory structure pattern from `nathlan/.github-workflows`:
 
 ```
 ┌─────────────────────────────────────────────────┐
 │  Discovery Phase                                │
-│  • Scans landing-zones/ directory               │
-│  • Finds all .tfvars files                      │
-│  • Creates matrix for parallel processing       │
+│  • Verifies terraform/ directory exists         │
+│  • Checks terraform.tfvars is present           │
 └────────────────┬────────────────────────────────┘
                  │
                  ▼
@@ -24,36 +23,31 @@ Our workflows demonstrate reuse of the centralized patterns from `nathlan/.githu
 │  • Terraform fmt, validate                      │
 │  • TFLint static analysis                       │
 │  • Checkov security scanning                    │
-│  • Runs once for entire codebase               │
 └────────────────┬────────────────────────────────┘
                  │
                  ▼
 ┌─────────────────────────────────────────────────┐
-│  Plan/Apply Phase (Matrix Strategy)             │
-│  • Processes each workload independently        │
-│  • Uses matrix to parallelize operations        │
+│  Plan/Apply Phase                               │
+│  • Runs terraform plan/apply in terraform/      │
+│  • Uses terraform.tfvars automatically          │
 │  • Follows centralized deployment patterns      │
-│  • Each workload uses its own .tfvars file      │
 └────────────────┬────────────────────────────────┘
                  │
                  ▼
 ┌─────────────────────────────────────────────────┐
-│  Aggregation & Reporting                        │
-│  • Combines results from all workloads          │
-│  • Posts summary to PR or tracking issues       │
-│  • Provides unified view of deployments         │
+│  Reporting                                      │
+│  • Posts results to PR or tracking issues       │
+│  • Provides deployment status                   │
 └─────────────────────────────────────────────────┘
 ```
 
 ### Key Design Decisions
 
-1. **Discovery Job**: Dynamically finds all `.tfvars` files and creates a matrix, enabling flexible workload management without workflow changes.
+1. **Standard Directory Structure**: All Terraform files reside in the `terraform/` directory, following the pattern expected by reusable workflows.
 
-2. **Centralized Validation**: Validation and security checks run once for the entire codebase, following the efficiency pattern from centralized workflows.
+2. **Centralized Validation**: Validation and security checks run for the Terraform configuration, following the efficiency pattern from centralized workflows.
 
-3. **Matrix Strategy**: Each workload is processed as a separate matrix job, maintaining independence while enabling parallelization.
-
-4. **Workflow Reusability**: While we can't directly call the reusable workflow with different var files per matrix item (GitHub Actions limitation), we've replicated its patterns for consistency.
+3. **Single Workload**: Configuration is managed through a single `terraform.tfvars` file that Terraform loads automatically.
 
 ## Workflows
 
@@ -61,19 +55,19 @@ Our workflows demonstrate reuse of the centralized patterns from `nathlan/.githu
 
 **Trigger**: Pull requests to `main` branch
 
-**Purpose**: Validate and plan changes for all workloads before merge
+**Purpose**: Validate and plan changes before merge
 
 **Jobs**:
-1. **discover**: Finds all `.tfvars` files and creates processing matrix
+1. **discover**: Verifies terraform.tfvars exists
 2. **validate**: Runs format check, validation, and TFLint (centralized pattern)
 3. **security**: Executes Checkov security scanning (centralized pattern)
-4. **plan**: Matrix job that plans each workload in parallel
-5. **summary**: Aggregates results and posts comprehensive PR comment
+4. **plan**: Generates deployment plan
+5. **summary**: Posts results as PR comment
 
 **Features**:
-- ✅ Parallel planning for faster feedback
-- ✅ Individual PR comments per workload
-- ✅ Aggregated summary comment
+- ✅ Standard Terraform directory structure
+- ✅ Automatic terraform.tfvars loading
+- ✅ PR comments with plan details
 - ✅ Plan artifacts uploaded for reference
 - ✅ Follows validation patterns from centralized workflows
 
@@ -81,69 +75,54 @@ Our workflows demonstrate reuse of the centralized patterns from `nathlan/.githu
 
 **Trigger**: Push to `main` branch or manual dispatch
 
-**Purpose**: Deploy all workloads to Azure
+**Purpose**: Deploy the landing zone to Azure
 
 **Jobs**:
-1. **discover**: Finds all `.tfvars` files and creates processing matrix
-2. **apply**: Matrix job that applies each workload with environment protection
-3. **summary**: Aggregates results and posts to tracking issues
+1. **discover**: Verifies terraform.tfvars exists
+2. **apply**: Deploys the configuration with environment protection
+3. **summary**: Posts results to tracking issues
 
 **Features**:
-- ✅ Sequential deployment by default (safe)
-- ✅ Optional parallel deployment via `workflow_dispatch` input
 - ✅ Environment protection on `azure-landing-zones` environment
 - ✅ Apply outputs uploaded as artifacts (90-day retention)
 - ✅ Automatic notification to tracking issues
 - ✅ Detailed summary in workflow job summary
 
-**Deployment Modes**:
-```yaml
-# Sequential (default) - one workload at a time
-max-parallel: 1
-
-# Parallel (manual trigger) - up to 10 concurrent deployments
-workflow_dispatch:
-  inputs:
-    parallel: true
-```
-
-## Multi-Workload Management
+## Configuration Management
 
 ### Directory Structure
 
 ```
 alz-subscriptions/
-├── landing-zones/
-│   ├── example-api-dev.tfvars      # Workload 1
-│   ├── example-app-prod.tfvars     # Workload 2
-│   └── ...                          # Additional workloads
-├── main.tf
-├── variables.tf
+├── terraform/
+│   ├── .terraform-version
+│   ├── backend.tf
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   └── terraform.tfvars          # Configuration
+├── README.md
 └── .github/
     └── workflows/
         ├── terraform-plan.yml
         └── terraform-apply.yml
 ```
 
-### Adding New Workloads
+### Updating Configuration
 
-Simply add a new `.tfvars` file to the `landing-zones/` directory:
+Modify `terraform/terraform.tfvars` to change the landing zone configuration:
 
 ```bash
-# Create new workload configuration
-cat > landing-zones/new-workload.tfvars <<EOF
-subscription_name = "my-new-subscription"
-workload_name     = "new-workload"
-environment       = "dev"
-EOF
+# Edit configuration
+vim terraform/terraform.tfvars
 
 # Commit and push
-git add landing-zones/new-workload.tfvars
-git commit -m "Add new workload configuration"
+git add terraform/terraform.tfvars
+git commit -m "Update landing zone configuration"
 git push
 ```
 
-The workflows will automatically discover and process the new workload.
+The workflows will automatically validate and plan the changes.
 
 ## Comparison with alz-workload-template
 
@@ -158,27 +137,23 @@ The workflows will automatically discover and process the new workload.
 | Environment Protection | ✅ Required | ✅ Required |
 | Artifact Upload | ✅ Plans & Reports | ✅ Plans & Apply outputs |
 
-### Differences (Multi-Workload Adaptations)
+### Differences (Single vs Multi-Workload)
 
 | Aspect | alz-workload-template | alz-subscriptions |
 |--------|----------------------|-------------------|
-| Workload Count | Single | Multiple (dynamic) |
-| Discovery | Static | Dynamic matrix |
-| Deployment | Direct reusable workflow call | Matrix + centralized patterns |
-| Var Files | Single default | Multiple `.tfvars` files |
-| Parallelization | N/A | Optional parallel processing |
+| Workload Count | Single | Single |
+| Discovery | Static | Verification |
+| Deployment | Direct reusable workflow call | Standard Terraform pattern |
+| Directory Structure | terraform/ | terraform/ |
+| Configuration | terraform.tfvars | terraform.tfvars |
 
 ### Why Not Direct Reusable Workflow Calls?
 
-The centralized reusable workflow (located in the `nathlan/.github-workflows` repository at path `.github/workflows/azure-terraform-deploy.yml@main`) expects single-deployment pattern, but this repository needs multi-workload support. The reusable workflow doesn't support:
-- Passing different var files per matrix item
-- Dynamic input per matrix iteration
-
-**Solution**: We replicate the centralized patterns (validation, security, deployment steps) directly in this repository while maintaining the same structure and practices. This provides:
+This repository follows the same patterns as the centralized reusable workflow (located in the `nathlan/.github-workflows` repository), implementing them directly to provide:
 - ✅ Same security and quality standards
 - ✅ Same deployment patterns
 - ✅ Easier debugging (workflow in same repo)
-- ✅ Flexibility for multi-workload requirements
+- ✅ Standard Terraform directory structure
 
 ## Environment Configuration
 
@@ -201,22 +176,18 @@ Create an environment named `azure-landing-zones` with:
 
 ### Terraform Backend
 
-Configure in `backend.tf`:
+Configure in `terraform/backend.tf`:
 ```hcl
 terraform {
   backend "azurerm" {
-    resource_group_name  = "terraform-state-rg"
-    storage_account_name = "tfstate<uniqueid>"
-    container_name       = "tfstate"
-    key                  = "alz-subscriptions.tfstate"
+    resource_group_name  = "rg-terraform-state"
+    storage_account_name = "stterraformstate"
+    container_name       = "alz-subscriptions"
+    key                  = "landing-zones/main.tfstate"
+    use_oidc             = true
   }
 }
 ```
-
-**Note**: All workloads currently share the same state file. For isolated state per workload, you can either:
-1. Configure separate backends in each `.tfvars` file using `-backend-config` flags
-2. Use Terraform workspaces
-3. Modify the workflows to dynamically set state keys per workload (not currently implemented)
 
 ## Monitoring & Debugging
 
@@ -224,9 +195,9 @@ terraform {
 
 View all workflow runs: **Actions** tab → Select workflow
 
-### Individual Workload Status
+### Individual Job Status
 
-In the Plan/Apply job, expand the matrix to see individual workload status:
+In the workflow run, view the job status:
 - ✅ Green checkmark = Success
 - ❌ Red X = Failed
 - 🟡 Yellow dot = In progress
@@ -242,55 +213,40 @@ Download artifacts for detailed analysis:
 
 Each PR receives:
 1. **Validation results** comment (fmt, validate, TFLint status)
-2. **Individual plan comments** (one per workload)
-3. **Summary comment** (aggregate status)
+2. **Plan comment** with deployment preview
+3. **Summary comment** with status
 
 ## Best Practices
 
 ### Pull Request Workflow
 
 1. Create feature branch
-2. Modify Terraform code or add/update `.tfvars` files
+2. Modify Terraform code or update `terraform/terraform.tfvars`
 3. Push changes and open PR
 4. Review automated plan results in PR comments
 5. Address any validation or security issues
 6. Request human review
 7. Merge to `main` when approved
 
-### Workload Organization
-
-- Use descriptive names: `{app}-{environment}.tfvars`
-- Examples: `api-dev.tfvars`, `web-prod.tfvars`, `db-staging.tfvars`
-- Keep related workloads together in subdirectories if needed
-
 ### Security
 
-- ✅ Never commit secrets to `.tfvars` files
+- ✅ Never commit secrets to `terraform.tfvars`
 - ✅ Use Azure Key Vault references for sensitive data
 - ✅ Review Checkov results before merging
 - ✅ Require environment approval for production deployments
 
-### State Management
-
-- All workloads currently share the same Terraform state file
-- For production use, consider implementing one of:
-  - **Option 1**: Separate backends per workload with `-backend-config` in workflows
-  - **Option 2**: Terraform workspaces (one per workload)
-  - **Option 3**: Separate state files using dynamic state key configuration
-- Evaluate based on your organization's state management preferences
-
 ## Troubleshooting
 
-### "No .tfvars files found"
+### "No terraform.tfvars found"
 
-**Cause**: Discovery job found no `.tfvars` files in `landing-zones/` directory
+**Cause**: Discovery job didn't find `terraform/terraform.tfvars`
 
 **Solution**: 
 ```bash
-# Verify files exist
-ls -la landing-zones/*.tfvars
+# Verify file exists
+ls -la terraform/terraform.tfvars
 
-# Ensure files have .tfvars extension (not .tfvars.example)
+# Ensure file is in the terraform/ directory
 ```
 
 ### Plan/Apply Job Fails
@@ -300,11 +256,11 @@ ls -la landing-zones/*.tfvars
 **Solution**:
 1. Check job logs for specific error
 2. Verify Azure credentials are configured
-3. Test locally: `terraform plan -var-file=landing-zones/your-file.tfvars`
+3. Test locally: `cd terraform && terraform plan`
 
-### Matrix Job Shows "skipped"
+### Job Shows "skipped"
 
-**Cause**: Discovery job found 0 workloads or dependency job failed
+**Cause**: Discovery job found no configuration or dependency job failed
 
 **Solution**:
 1. Check discovery job output
@@ -315,17 +271,16 @@ ls -la landing-zones/*.tfvars
 
 ### Potential Improvements
 
-1. **Conditional Workload Processing**: Only process workloads with changed `.tfvars` files
+1. **Change Detection**: Only run when Terraform files change
 2. **Drift Detection**: Scheduled workflow to detect configuration drift
 3. **Cost Estimation**: Integrate Infracost for cost impact analysis
-4. **Approval Matrix**: Different approvers for different workload types
-5. **Direct Reusable Workflow**: If GitHub adds support for matrix + reusable workflows
+4. **Direct Reusable Workflow**: Call centralized workflows directly
 
 ### Contributing
 
 When modifying workflows:
 1. Test in a feature branch first
-2. Verify all workloads process correctly
+2. Verify the deployment processes correctly
 3. Check PR comments format properly
 4. Update this README with any changes
 5. Follow the centralized patterns from `nathlan/.github-workflows`
@@ -340,4 +295,4 @@ For issues or questions:
 
 ---
 
-**Key Takeaway**: These workflows demonstrate how to adapt centralized workflow patterns for multi-workload scenarios while maintaining the same quality, security, and deployment standards.
+**Key Takeaway**: These workflows follow centralized workflow patterns for standard Terraform deployments while maintaining the same quality, security, and deployment standards.

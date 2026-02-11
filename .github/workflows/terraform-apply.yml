@@ -1,16 +1,15 @@
 name: Terraform Apply
 
 # ============================================================================
-# MULTI-WORKLOAD DEPLOYMENT WORKFLOW
+# SINGLE-WORKLOAD DEPLOYMENT WORKFLOW
 # ============================================================================
-# This workflow discovers all .tfvars files in the landing-zones/ directory
-# and applies each workload sequentially or in parallel, following the
-# centralized deployment patterns while maintaining multi-workload capability.
+# This workflow deploys a single landing zone defined in terraform/terraform.tfvars,
+# following the centralized deployment patterns with environment protection.
 #
 # Architecture:
-# 1. Discovery job finds all .tfvars files
-# 2. Apply jobs process each workload (with environment protection)
-# 3. Summary job aggregates results and posts to tracking issues
+# 1. Discovery job verifies terraform.tfvars exists
+# 2. Apply job deploys the workload (with environment protection)
+# 3. Summary job posts results to tracking issues
 # ============================================================================
 
 on:
@@ -18,12 +17,6 @@ on:
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      parallel:
-        description: 'Deploy workloads in parallel'
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   id-token: write
@@ -32,10 +25,10 @@ permissions:
 
 jobs:
   # ============================================================================
-  # Job 1: Discovery - Find all .tfvars files to process
+  # Job 1: Discovery - Verify terraform.tfvars exists
   # ============================================================================
   discover:
-    name: Discover Workloads
+    name: Discover Workload
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -48,11 +41,14 @@ jobs:
       - name: Discover tfvars files
         id: set-matrix
         run: |
-          # Find all .tfvars files in landing-zones directory
-          tfvars_files=$(find landing-zones -name "*.tfvars" -type f | sort)
+          # Check if terraform/terraform.tfvars exists
+          tfvars_files=""
+          if [ -f "terraform/terraform.tfvars" ]; then
+            tfvars_files="terraform/terraform.tfvars"
+          fi
 
           if [ -z "$tfvars_files" ]; then
-            echo "No .tfvars files found in landing-zones directory"
+            echo "No terraform.tfvars file found in terraform directory"
             echo "matrix={\"include\":[]}" >> $GITHUB_OUTPUT
             echo "count=0" >> $GITHUB_OUTPUT
             exit 0
@@ -62,23 +58,12 @@ jobs:
           matrix_json="{"
           matrix_json+="\"include\":["
 
-          first=true
-          count=0
-          for tfvars_file in $tfvars_files; do
-            workload_name=$(basename "$tfvars_file" .tfvars)
-
-            if [ "$first" = false ]; then
-              matrix_json+=","
-            fi
-            first=false
-
-            matrix_json+="{"
-            matrix_json+="\"workload\":\"$workload_name\","
-            matrix_json+="\"tfvars-file\":\"$tfvars_file\""
-            matrix_json+="}"
-
-            count=$((count + 1))
-          done
+          # Single workload configuration
+          matrix_json+="{"
+          matrix_json+="\"workload\":\"main\","
+          matrix_json+="\"tfvars-file\":\"terraform/terraform.tfvars\""
+          matrix_json+="}"
+          count=1
 
           matrix_json+="]}"
 
@@ -89,7 +74,7 @@ jobs:
           echo "$matrix_json" | jq '.'
 
   # ============================================================================
-  # Job 2: Apply - Deploy each workload with environment protection
+  # Job 2: Apply - Deploy the workload with environment protection
   # ============================================================================
   apply:
     name: Apply (${{ matrix.workload }})
@@ -99,10 +84,8 @@ jobs:
     environment: azure-landing-zones
 
     strategy:
-      # Sequential by default, parallel if explicitly requested
-      # Note: Input is boolean type, but we use string comparison for compatibility
-      # with non-workflow_dispatch triggers where input is undefined
-      max-parallel: ${{ github.event.inputs.parallel == 'true' && 10 || 1 }}
+      # Single workload deployment
+      max-parallel: 1
       fail-fast: false
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
 
@@ -125,6 +108,7 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
+        working-directory: terraform
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -135,13 +119,12 @@ jobs:
         id: apply
         run: |
           echo "Applying workload: ${{ matrix.workload }}"
-          echo "Using var file: ${{ matrix.tfvars-file }}"
 
           terraform apply \
             -auto-approve \
-            -var-file="${{ matrix.tfvars-file }}" \
             -no-color \
             -input=false 2>&1 | tee apply-output-${{ matrix.workload }}.txt
+        working-directory: terraform
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -153,7 +136,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: apply-output-${{ matrix.workload }}
-          path: apply-output-${{ matrix.workload }}.txt
+          path: terraform/apply-output-${{ matrix.workload }}.txt
           retention-days: 90
 
       - name: Generate Apply Summary
