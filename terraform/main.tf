@@ -13,6 +13,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
     }
+    time = {
+      source  = "hashicorp/time"
+      version = ">= 0.9, < 1.0"
+    }
   }
 }
 
@@ -24,44 +28,26 @@ provider "azurerm" {
 # ==============================================================================
 # Landing Zone Vending Module
 # ==============================================================================
-# Provisions a complete Azure Landing Zone including:
+# Provisions complete Azure Landing Zones including:
 # - Subscription creation and management group association
-# - Virtual network with hub peering
+# - Virtual network with hub peering and subnets
 # - User-managed identity with OIDC federated credentials
 # - Role assignments for workload identity
 # - Budget with notification thresholds
+# - Auto-generated resource names following Azure naming conventions
 # ==============================================================================
 
-module "landing_zone" {
-  source = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.0.2"
+module "landing_zones" {
+  source = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.0.4"
 
-  # Subscription Configuration
-  subscription_alias_enabled                        = var.subscription_alias_enabled
-  subscription_billing_scope                        = var.subscription_billing_scope
-  subscription_display_name                         = var.subscription_display_name
-  subscription_alias_name                           = var.subscription_alias_name
-  subscription_workload                             = var.subscription_workload
-  subscription_management_group_id                  = var.subscription_management_group_id
-  subscription_management_group_association_enabled = var.subscription_management_group_association_enabled
-  subscription_tags                                 = var.subscription_tags
+  # Common configuration shared across all landing zones
+  subscription_billing_scope       = var.subscription_billing_scope
+  subscription_management_group_id = var.subscription_management_group_id
+  hub_network_resource_id          = var.hub_network_resource_id
+  github_organization              = var.github_organization
+  azure_address_space              = var.azure_address_space
+  tags                             = var.tags
 
-  # Resource Groups
-  resource_group_creation_enabled = var.resource_group_creation_enabled
-  resource_groups                 = var.resource_groups
-
-  # Role Assignments
-  role_assignment_enabled = var.role_assignment_enabled
-  role_assignments        = var.role_assignments
-
-  # Virtual Network
-  virtual_network_enabled = var.virtual_network_enabled
-  virtual_networks        = var.virtual_networks
-
-  # User-Managed Identities (UMI)
-  umi_enabled             = var.umi_enabled
-  user_managed_identities = var.user_managed_identities
-
-  # Budgets
-  budget_enabled = var.budget_enabled
-  budgets        = var.budgets
+  # Map of landing zones to deploy
+  landing_zones = var.landing_zones
 }
