@@ -15,7 +15,7 @@
 # ==============================================================================
 
 module "landing_zones" {
-  source = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.0.4"
+  source = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.0.6"
 
   # Common configuration shared across all landing zones
   subscription_billing_scope       = var.subscription_billing_scope

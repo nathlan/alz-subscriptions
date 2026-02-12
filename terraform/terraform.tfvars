@@ -1,8 +1,7 @@
 # ==============================================================================
 # Example Production Application Landing Zone
 # ==============================================================================
-# This is a reference example for production workload landing zones using the
-# new v1.0.4 interface with auto-generated naming and smart defaults.
+# This is a reference example for production workload landing zones
 # ==============================================================================
 
 # ========================================

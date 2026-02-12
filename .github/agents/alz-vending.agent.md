@@ -16,8 +16,6 @@ mcp-servers:
 
 **Repository:** `nathlan/alz-subscriptions`
 **Agent:** `alz-vending` (self-service orchestrator)
-**Module Version:** v1.0.4 (Azure Landing Zone Vending)
-**Last Updated:** 2026-02-11
 
 ---
 
@@ -61,7 +59,6 @@ problem_statement: |
   Constraints:
   - Use prefix size only for address_space in terraform.tfvars (e.g., /24)
   - Do not modify files locally; all edits happen in the cloud agent context
-  - Follow module version v1.0.4 and map-based config pattern
 ```
 
 **Local rules:**
@@ -89,7 +86,7 @@ When running as a cloud coding agent (GitHub Actions environment):
 
 ## Overview
 
-The `alz-vending` agent orchestrates the self-service provisioning of complete Azure landing zones (subscriptions) with automated networking, identity management, and optional budgets. The repository follows a **map-based architecture** using the Azure Landing Zone Vending module v1.0.4, where all landing zones are defined in a single `terraform/terraform.tfvars` configuration file.
+The `alz-vending` agent orchestrates the self-service provisioning of complete Azure landing zones (subscriptions) with automated networking, identity management, and optional budgets. The repository follows a **map-based architecture** using the Azure Landing Zone Vending module, where all landing zones are defined in a single `terraform/terraform.tfvars` configuration file.
 
 ### Key Capabilities
 
@@ -485,7 +482,6 @@ hub_network_resource_id: PLACEHOLDER      # TODO: Update with Hub VNet resource 
 # Repository & Organization
 github_organization: "nathlan"            # GitHub org for OIDC credentials
 alz_infra_repo: "alz-subscriptions"      # This repository
-module_version: "v1.0.4"                  # Azure Landing Zone Vending module
 
 # Terraform Backend (State File)
 state_resource_group: "rg-terraform-state"
@@ -733,7 +729,3 @@ The repository includes `terraform-deploy.yml` which:
 | Terraform state issues | DevOps/SRE team |
 
 ---
-
-**Status:** ✅ ALIGNED WITH REPOSITORY ARCHITECTURE
-**Last Verified:** 2026-02-11
-**Module Version:** v1.0.4
