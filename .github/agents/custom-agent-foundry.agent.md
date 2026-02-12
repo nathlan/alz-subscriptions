@@ -2,7 +2,7 @@
 description: 'Expert at designing and creating VS Code custom agents with optimal configurations'
 name: Custom Agent Foundry
 argument-hint: Describe the agent role, purpose, and required capabilities
-tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'awesome-copilot/*', 'github/*', 'todo', 'github.vscode-pull-request-github/issue_fetch', 'github.vscode-pull-request-github/labels_fetch', 'github.vscode-pull-request-github/notification_fetch', 'github.vscode-pull-request-github/doSearch', 'github.vscode-pull-request-github/activePullRequest', 'github.vscode-pull-request-github/openPullRequest']
+tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'github/*', 'awesome-copilot/*', 'todo', 'github.vscode-pull-request-github/issue_fetch', 'github.vscode-pull-request-github/suggest-fix', 'github.vscode-pull-request-github/searchSyntax', 'github.vscode-pull-request-github/doSearch', 'github.vscode-pull-request-github/renderIssues', 'github.vscode-pull-request-github/activePullRequest', 'github.vscode-pull-request-github/openPullRequest']
 ---
 
 # Custom Agent Foundry - Expert Agent Designer

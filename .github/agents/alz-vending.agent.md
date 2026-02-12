@@ -14,9 +14,9 @@ mcp-servers:
 
 # Azure Landing Zone Vending Agent Instructions
 
-**Repository:** `nathlan/alz-subscriptions`  
-**Agent:** `alz-vending` (self-service orchestrator)  
-**Module Version:** v1.0.4 (Azure Landing Zone Vending)  
+**Repository:** `nathlan/alz-subscriptions`
+**Agent:** `alz-vending` (self-service orchestrator)
+**Module Version:** v1.0.4 (Azure Landing Zone Vending)
 **Last Updated:** 2026-02-11
 
 ---
@@ -32,22 +32,44 @@ When running locally in VS Code (typically invoked via the `/alz-vending` prompt
 1. **Collect and validate** all user inputs (Phase 0)
 2. **Read existing configuration** from `nathlan/alz-subscriptions` via GitHub MCP to check for conflicts
 3. **Present a confirmation summary** with the validated inputs and computed values
-4. **Instruct the user to delegate** to the cloud coding agent:
+4. **Invoke the GitHub cloud coding agent** using the remote MCP tool `github/create_pull_request_with_copilot` once Phase 0 is complete and the user confirms:
 
-> ✅ All inputs validated. To provision this landing zone:
->
-> Click the **"Delegate to coding agent"** button (next to the Send button in Chat)
-> to hand off this task to the Copilot coding agent. The agent will create a
-> pull request in `nathlan/alz-subscriptions` with the validated configuration.
->
-> _Requires the `githubPullRequests.codingAgent.uiIntegration` setting to be enabled._
+```
+Use GitHub MCP: create_pull_request_with_copilot
+
+owner: nathlan
+repo: alz-subscriptions
+base_ref: main
+title: "feat(lz): Add landing zone — {workload_name}"
+problem_statement: |
+  You are the `alz-vending` cloud coding agent in the `alz-subscriptions` repository. Use the validated inputs
+  below to execute Phase 1 (create branch, update terraform/terraform.tfvars,
+  open PR) and Phase 2 (tracking issue, optional workload repo setup) as defined
+  in the alz-vending agent instructions.
+
+  Validated inputs:
+  - workload_name: {workload_name}
+  - environment: {environment} (env: {env})
+  - location: {location}
+  - team_name: {team_name}
+  - address_space: {address_space}
+  - cost_center: {cost_center}
+  - team_email: {team_email}
+  - repo_name: {repo_name}
+  - lz_key: {lz_key}
+
+  Constraints:
+  - Use prefix size only for address_space in terraform.tfvars (e.g., /24)
+  - Do not modify files locally; all edits happen in the cloud agent context
+  - Follow module version v1.0.4 and map-based config pattern
+```
 
 **Local rules:**
 - **DO NOT** create branches, commits, or pull requests locally
 - **DO NOT** modify any files in the workspace
 - **DO** use read-only tools (`read`, `search`, `github/get_file_contents`, `github/search_issues`) for validation
-- **DO** verify the team exists using `github/get_team_members`
 - **DO** check for address space overlaps and duplicate keys
+- **DO** dispatch the cloud agent using `github/create_pull_request_with_copilot` after user confirmation
 
 ### Cloud Context (Copilot Coding Agent)
 
@@ -127,19 +149,19 @@ tags = {
 
 landing_zones = {
   # Existing entries...
-  
+
   example-app-prod = {
     workload = "example-app"
     env      = "prod"
     team     = "platform-engineering"
     location = "uksouth"
-    
+
     subscription_tags = { ... }
     spoke_vnet = { ... }
     budget = { ... }
     federated_credentials_github = { ... }
   }
-  
+
   # New entries added here by PRs
 }
 ```
@@ -216,7 +238,7 @@ Before proposing any configuration:
 
 ## Phase 1: Create Azure Subscription PR
 
-**Triggered:** User confirms after Phase 0 validation  
+**Triggered:** GitHub cloud coding agent job created via `github/create_pull_request_with_copilot` after Phase 0 validation
 **Prerequisites:**
 - All Phase 0 validations passed
 - Agent has read access to `terraform/terraform.tfvars`
@@ -244,12 +266,12 @@ Before proposing any configuration:
      env      = "prod"
      team     = "payments-team"
      location = "uksouth"
-     
+
      subscription_tags = {
        cost_center = "CC-4521"
        owner       = "payments-team"
      }
-     
+
      spoke_vnet = {
        ipv4_address_spaces = {
          default_address_space = {
@@ -265,13 +287,13 @@ Before proposing any configuration:
          }
        }
      }
-     
+
      budget = {
        monthly_amount             = 500
        alert_threshold_percentage = 80
        alert_contact_emails       = ["payments-team@example.com"]
      }
-     
+
      federated_credentials_github = {
        repository = "payments-api"  # For OIDC auth to Azure
      }
@@ -289,11 +311,11 @@ Before proposing any configuration:
 5. **Create Pull Request:**
    ```
    Use GitHub MCP: create_pull_request
-   
+
    Title: feat(lz): Add landing zone — payments-api
    Draft: false
    Labels: landing-zone, terraform, needs-review
-   
+
    Body template (see below)
    ```
 
@@ -487,13 +509,13 @@ landing_zones = {
     env      = "prod|dev|test"            # Environment abbreviation
     team     = "team-name"                # Owning team name
     location = "azure-region"             # e.g., "uksouth", "australiaeast"
-    
+
     # Subscription Tags
     subscription_tags = {
       cost_center = "CC-1234"
       owner       = "team-name"
     }
-    
+
     # Networking (Optional, but recommended)
     spoke_vnet = {
       ipv4_address_spaces = {
@@ -510,14 +532,14 @@ landing_zones = {
         }
       }
     }
-    
+
     # Budget (Optional)
     budget = {
       monthly_amount             = 500     # USD
       alert_threshold_percentage = 80      # Alert at 80%
       alert_contact_emails       = ["team@example.com"]
     }
-    
+
     # GitHub OIDC (Optional)
     federated_credentials_github = {
       repository = "repository-name"      # e.g., "payments-api"
@@ -601,12 +623,12 @@ payments-api-prod = {
   env      = "prod"
   team     = "payments-team"
   location = "uksouth"
-  
+
   subscription_tags = {
     cost_center = "CC-4521"
     owner       = "payments-team"
   }
-  
+
   spoke_vnet = {
     ipv4_address_spaces = {
       default_address_space = {
@@ -618,13 +640,13 @@ payments-api-prod = {
       }
     }
   }
-  
+
   budget = {
     monthly_amount             = 500
     alert_threshold_percentage = 80
     alert_contact_emails       = ["payments-team@example.com"]
   }
-  
+
   federated_credentials_github = {
     repository = "payments-api"
   }
@@ -675,7 +697,7 @@ The repository includes `terraform-deploy.yml` which:
 **A:** Yes! Add multiple entries in the `subnets` map with different prefix sizes.
 
 ### Q: What prefix sizes should I use?
-**A:** 
+**A:**
 - `/24` parent → up to 4 subnets of `/26` (64 IPs each)
 - `/23` parent → up to 8 subnets of `/26`
 - For most applications, `/26` subnets are sufficient
@@ -712,6 +734,6 @@ The repository includes `terraform-deploy.yml` which:
 
 ---
 
-**Status:** ✅ ALIGNED WITH REPOSITORY ARCHITECTURE  
-**Last Verified:** 2026-02-11  
+**Status:** ✅ ALIGNED WITH REPOSITORY ARCHITECTURE
+**Last Verified:** 2026-02-11
 **Module Version:** v1.0.4
