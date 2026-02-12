@@ -72,4 +72,58 @@ landing_zones = {
     #   repository = "example-app"
     # }
   }
+
+  # ==============================================================================
+  # Test Landing Zone for ALZ Vending Process
+  # ==============================================================================
+  # This landing zone is used for testing the Azure Landing Zone (ALZ) vending
+  # automation, including subscription creation, resource provisioning, and
+  # GitHub OIDC federated credentials setup. This is a reference implementation
+  # for the e2e vending test process.
+  # ==============================================================================
+  test-workload-api-prod = {
+    workload = "test-workload-api"
+    env      = "prod"
+    team     = "platform-engineering"
+    location = "uksouth"
+
+    subscription_tags = {
+      cost_center = "TEST-CC-001"
+      owner       = "platform-engineering"
+      purpose     = "e2e-vending-test"
+      created_by  = "alz-vending-agent"
+    }
+
+    # Virtual network with subnets
+    spoke_vnet = {
+      ipv4_address_spaces = {
+        default_address_space = {
+          address_space_cidr = "/24"
+          subnets = {
+            default = {
+              subnet_prefixes = ["/26"]
+            }
+            app = {
+              subnet_prefixes = ["/26"]
+            }
+            database = {
+              subnet_prefixes = ["/27"]
+            }
+          }
+        }
+      }
+    }
+
+    # Budget with notifications
+    budget = {
+      monthly_amount             = 750
+      alert_threshold_percentage = 85
+      alert_contact_emails       = ["platform-engineering@example.com"]
+    }
+
+    # GitHub OIDC federated credentials
+    federated_credentials_github = {
+      repository = "test-workload-api"
+    }
+  }
 }
