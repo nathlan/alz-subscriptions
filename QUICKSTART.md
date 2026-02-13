@@ -10,10 +10,10 @@ export GITHUB_TOKEN="ghp_xxxxxxxxxxxxx"
 cd terraform
 
 # 3. Plan (optional but recommended)
-terraform plan -var="github_organization=nathlan"
+terraform plan -var="github_owner=nathlan"
 
 # 4. Apply
-terraform apply -var="github_organization=nathlan"
+terraform apply -var="github_owner=nathlan"
 ```
 
 ## 📋 What Will Be Created
@@ -36,7 +36,7 @@ When you run `terraform apply`, the following will be created:
 
 ```bash
 cd terraform
-terraform plan -var="github_organization=nathlan" -out=plan.tfplan
+terraform plan -var="github_owner=nathlan" -out=plan.tfplan
 ```
 
 Expected resources:

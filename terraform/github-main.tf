@@ -54,8 +54,9 @@ resource "github_team_repository" "team_access" {
   for_each = merge([
     for repo_key, repo in var.github_repositories : {
       for team_slug, permission in repo.team_access :
-      "${repo_key}-${team_slug}" => {
+      "${repo_key}::${team_slug}" => {
         repository = repo.name
+        repo_key   = repo_key
         team_slug  = team_slug
         permission = permission
       }
@@ -63,7 +64,7 @@ resource "github_team_repository" "team_access" {
   ]...)
 
   team_id    = data.github_team.teams[each.value.team_slug].id
-  repository = github_repository.repos[split("-${each.value.team_slug}", each.key)[0]].name
+  repository = github_repository.repos[each.value.repo_key].name
   permission = each.value.permission
 
   depends_on = [github_repository.repos]
@@ -118,16 +119,6 @@ resource "github_repository_ruleset" "main_branch_protection" {
 
     # Non-Fast-Forward Protection
     non_fast_forward = each.value.branch_protection.non_fast_forward
-  }
-
-  # Bypass Actors
-  dynamic "bypass_actors" {
-    for_each = each.value.branch_protection.bypass_actors
-    content {
-      actor_id    = data.github_team.teams[bypass_actors.value.actor_type == "Team" ? bypass_actors.value.actor_type : ""].id
-      actor_type  = bypass_actors.value.actor_type
-      bypass_mode = bypass_actors.value.bypass_mode
-    }
   }
 
   depends_on = [github_repository.repos]

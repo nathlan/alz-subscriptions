@@ -149,7 +149,7 @@ terraform init
 
 ### 3. Plan Changes
 ```bash
-terraform plan -var="github_organization=nathlan"
+terraform plan -var="github_owner=nathlan"
 ```
 
 This will show:
@@ -159,7 +159,7 @@ This will show:
 
 ### 4. Apply Changes
 ```bash
-terraform apply -var="github_organization=nathlan"
+terraform apply -var="github_owner=nathlan"
 ```
 
 Type `yes` to confirm when prompted.

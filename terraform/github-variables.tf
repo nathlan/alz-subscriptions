@@ -58,10 +58,6 @@ variable "github_repositories" {
       })), [])
       strict_required_status_checks_policy = optional(bool, true)
       non_fast_forward                     = optional(bool, true)
-      bypass_actors = optional(list(object({
-        actor_type  = string
-        bypass_mode = string
-      })), [])
     }))
   }))
 

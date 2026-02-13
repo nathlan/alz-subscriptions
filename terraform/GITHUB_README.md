@@ -82,10 +82,10 @@ github_repositories = {
 terraform init
 
 # Preview changes
-terraform plan -var="github_organization=nathlan"
+terraform plan -var="github_owner=nathlan"
 
 # Apply changes
-terraform apply -var="github_organization=nathlan"
+terraform apply -var="github_owner=nathlan"
 ```
 
 ## Configuration Details

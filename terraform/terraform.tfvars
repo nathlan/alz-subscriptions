@@ -323,7 +323,6 @@ github_repositories = {
       ]
       strict_required_status_checks_policy = true
       non_fast_forward                     = true
-      bypass_actors                        = []
     }
   }
 }

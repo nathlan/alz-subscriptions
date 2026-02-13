@@ -86,7 +86,7 @@ terraform validate
 
 ### Step 5: Review Plan
 ```bash
-terraform plan -var="github_organization=nathlan" -out=tfplan
+terraform plan -var="github_owner=nathlan" -out=tfplan
 ```
 
 **Expected Resources:**
@@ -109,7 +109,7 @@ terraform apply tfplan
 
 **Or interactively:**
 ```bash
-terraform apply -var="github_organization=nathlan"
+terraform apply -var="github_owner=nathlan"
 ```
 
 - [ ] Reviewed the plan one final time
@@ -214,7 +214,7 @@ gh api /orgs/nathlan/teams --jq '.[].slug'
 terraform import 'github_repository.repos["alz-handover-prod"]' alz-handover-prod
 
 # Then run plan again
-terraform plan -var="github_organization=nathlan"
+terraform plan -var="github_owner=nathlan"
 ```
 
 ## Rollback Procedure
@@ -223,7 +223,7 @@ If you need to rollback the deployment:
 
 ### Option 1: Destroy with Terraform
 ```bash
-terraform destroy -var="github_organization=nathlan"
+terraform destroy -var="github_owner=nathlan"
 ```
 
 ### Option 2: Manual Deletion
