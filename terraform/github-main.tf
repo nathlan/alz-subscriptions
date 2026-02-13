@@ -16,7 +16,7 @@ resource "github_repository" "repos" {
   allow_squash_merge     = each.value.allow_squash_merge
   allow_merge_commit     = each.value.allow_merge_commit
   allow_rebase_merge     = each.value.allow_rebase_merge
-  
+
   # Use template repository if specified
   dynamic "template" {
     for_each = each.value.template_repository != null ? [1] : []
@@ -97,6 +97,6 @@ resource "github_repository_ruleset" "branch_protection" {
   bypass_actors {
     actor_id    = 5 # Repository admins
     actor_type  = "RepositoryRole"
-    bypass_mode = "pull_requests"
+    bypass_mode = "pull_request"
   }
 }

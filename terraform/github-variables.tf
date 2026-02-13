@@ -23,9 +23,9 @@ variable "github_repositories" {
     allow_squash_merge     = optional(bool, true)
     allow_merge_commit     = optional(bool, false)
     allow_rebase_merge     = optional(bool, false)
-    
+
     team_access = optional(map(string), {})
-    
+
     branch_protection = optional(object({
       pattern                         = string
       required_approving_review_count = optional(number, 1)
