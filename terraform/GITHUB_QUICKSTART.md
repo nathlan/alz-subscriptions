@@ -19,7 +19,7 @@ This guide shows how to use the new GitHub Terraform configuration to create the
 ## Quick Apply
 
 ```bash
-cd /home/runner/work/alz-subscriptions/alz-subscriptions/terraform
+cd terraform
 
 # Initialize (if not already done)
 terraform init

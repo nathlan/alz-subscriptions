@@ -100,7 +100,7 @@ resource "github_repository_ruleset" "main_protection" {
   bypass_actors {
     actor_id    = data.github_team.platform_engineering.id
     actor_type  = "Team"
-    bypass_mode = "pull_request" # Can bypass PR requirements but not status checks
+    bypass_mode = "pull_requests" # Can bypass PR requirements but not status checks
   }
 
   depends_on = [
