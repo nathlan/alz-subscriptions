@@ -21,7 +21,7 @@
 #
 # Orchestrates handover from ALZ Vending to GitHub Config agent — when a new landing zone merges, dispatches Copilot to create the workload repo via Terraform PR
 #
-# frontmatter-hash: 2acad0c24c56fec6b2a1f978e4b5c391bf9aa2ec702b87d8c8c88449dc6cb85d
+# frontmatter-hash: cdf6bd312a6ed5ef0939b297af579f59d0f8c4efd17e3d3afc7dcb1180819708
 
 name: "ALZ Landing Zone → GitHub Config Repo Provisioner"
 "on":
@@ -68,10 +68,7 @@ jobs:
     needs: activation
     runs-on: ubuntu-latest
     permissions:
-      actions: read
       contents: read
-      issues: read
-      pull-requests: read
     env:
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       GH_AW_ASSETS_ALLOWED_EXTS: ""
@@ -440,7 +437,7 @@ jobs:
                   "GITHUB_LOCKDOWN_MODE": "$GITHUB_MCP_LOCKDOWN",
                   "GITHUB_PERSONAL_ACCESS_TOKEN": "\${GITHUB_MCP_SERVER_TOKEN}",
                   "GITHUB_READ_ONLY": "1",
-                  "GITHUB_TOOLSETS": "context,repos,issues,pull_requests"
+                  "GITHUB_TOOLSETS": "repos"
                 }
               },
               "safeoutputs": {
