@@ -5,6 +5,10 @@ terraform {
       source  = "Azure/azapi"
       version = "~> 2.5"
     }
+    github = {
+      source  = "integrations/github"
+      version = "~> 6.0"
+    }
     modtm = {
       source  = "Azure/modtm"
       version = "~> 0.3"
