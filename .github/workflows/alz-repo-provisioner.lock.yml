@@ -21,7 +21,7 @@
 #
 # Orchestrates handover from ALZ Vending to GitHub Config agent — when a new landing zone merges, dispatches Copilot to create the workload repo via Terraform PR
 #
-# frontmatter-hash: 1a5be58d9f600cee94604ae4e76cb95fca952886c7ccc71e26f9b420238b975f
+# frontmatter-hash: 28a0615ec89f0f03aaecdf3ce73a0fd49901285a41d4f0bebc2950e62f33cc59
 
 name: "ALZ Landing Zone → GitHub Config Repo Provisioner"
 "on":
@@ -68,8 +68,9 @@ jobs:
     needs: activation
     runs-on: ubuntu-latest
     permissions:
-      actions: read
       contents: read
+      issues: read
+      pull-requests: read
     env:
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       GH_AW_ASSETS_ALLOWED_EXTS: ""
@@ -139,17 +140,6 @@ jobs:
           script: |
             const determineAutomaticLockdown = require('/opt/gh-aw/actions/determine_automatic_lockdown.cjs');
             await determineAutomaticLockdown(github, context, core);
-      - name: Generate GitHub App token
-        id: github-mcp-app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
-        with:
-          app-id: ${{ vars.GH_CONFIG_APP_ID }}
-          private-key: ${{ secrets.GH_CONFIG_PRIVATE_KEY }}
-          owner: nathlan
-          repositories: alz-subscriptions,github-config
-          github-api-url: ${{ github.api_url }}
-          permission-actions: read
-          permission-contents: read
       - name: Download container images
         run: bash /opt/gh-aw/actions/download_docker_images.sh ghcr.io/github/gh-aw-mcpg:v0.0.94 ghcr.io/github/github-mcp-server:v0.30.2 node:lts-alpine
       - name: Write Safe Outputs Config
@@ -158,12 +148,12 @@ jobs:
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
           cat > /opt/gh-aw/safeoutputs/config.json << 'EOF'
-          {"add_comment":{"max":1},"create_issue":{"max":1},"missing_data":{},"missing_tool":{},"noop":{"max":1}}
+          {"create_issue":{"max":1},"missing_data":{},"missing_tool":{},"noop":{"max":1}}
           EOF
           cat > /opt/gh-aw/safeoutputs/tools.json << 'EOF'
           [
             {
-              "description": "Create a new GitHub issue for tracking bugs, feature requests, or tasks. Use this for actionable work items that need assignment, labeling, and status tracking. For reports, announcements, or status updates that don't require task tracking, use create_discussion instead. CONSTRAINTS: Maximum 1 issue(s) can be created. Assignees [copilot] will be automatically assigned.",
+              "description": "Create a new GitHub issue for tracking bugs, feature requests, or tasks. Use this for actionable work items that need assignment, labeling, and status tracking. For reports, announcements, or status updates that don't require task tracking, use create_discussion instead. CONSTRAINTS: Maximum 1 issue(s) can be created. Title will be prefixed with \"feat: add new ALZ repo \". Labels [automation alz-vending] will be automatically added. Assignees [copilot] will be automatically assigned. Issues will be created in repository \"nathlan/github-config\".",
               "inputSchema": {
                 "additionalProperties": false,
                 "properties": {
@@ -201,27 +191,6 @@ jobs:
                 "type": "object"
               },
               "name": "create_issue"
-            },
-            {
-              "description": "Add a comment to an existing GitHub issue, pull request, or discussion. Use this to provide feedback, answer questions, or add information to an existing conversation. For creating new items, use create_issue, create_discussion, or create_pull_request instead. CONSTRAINTS: Maximum 1 comment(s) can be added.",
-              "inputSchema": {
-                "additionalProperties": false,
-                "properties": {
-                  "body": {
-                    "description": "The comment text in Markdown format. This is the 'body' field - do not use 'comment_body' or other variations. Provide helpful, relevant information that adds value to the conversation.",
-                    "type": "string"
-                  },
-                  "item_number": {
-                    "description": "The issue, pull request, or discussion number to comment on. This is the numeric ID from the GitHub URL (e.g., 123 in github.com/owner/repo/issues/123). If omitted, the tool will attempt to resolve the target from the current workflow context (triggering issue, PR, or discussion).",
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "body"
-                ],
-                "type": "object"
-              },
-              "name": "add_comment"
             },
             {
               "description": "Report that a tool or capability needed to complete the task is not available, or share any information you deem important about missing functionality or limitations. Use this when you cannot accomplish what was requested because the required functionality is missing or access is restricted.",
@@ -296,20 +265,6 @@ jobs:
           EOF
           cat > /opt/gh-aw/safeoutputs/validation.json << 'EOF'
           {
-            "add_comment": {
-              "defaultMax": 1,
-              "fields": {
-                "body": {
-                  "required": true,
-                  "type": "string",
-                  "sanitize": true,
-                  "maxLength": 65000
-                },
-                "item_number": {
-                  "issueOrPRNumber": true
-                }
-              }
-            },
             "create_issue": {
               "defaultMax": 1,
               "fields": {
@@ -421,7 +376,7 @@ jobs:
           GH_AW_SAFE_OUTPUTS_API_KEY: ${{ steps.safe-outputs-start.outputs.api_key }}
           GH_AW_SAFE_OUTPUTS_PORT: ${{ steps.safe-outputs-start.outputs.port }}
           GITHUB_MCP_LOCKDOWN: ${{ steps.determine-automatic-lockdown.outputs.lockdown == 'true' && '1' || '0' }}
-          GITHUB_MCP_SERVER_TOKEN: ${{ steps.github-mcp-app-token.outputs.token }}
+          GITHUB_MCP_SERVER_TOKEN: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN || secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -eo pipefail
           mkdir -p /tmp/gh-aw/mcp-config
@@ -449,7 +404,7 @@ jobs:
                   "GITHUB_LOCKDOWN_MODE": "$GITHUB_MCP_LOCKDOWN",
                   "GITHUB_PERSONAL_ACCESS_TOKEN": "\${GITHUB_MCP_SERVER_TOKEN}",
                   "GITHUB_READ_ONLY": "1",
-                  "GITHUB_TOOLSETS": "repos,issues,pull_requests,actions"
+                  "GITHUB_TOOLSETS": "context,repos,issues,pull_requests"
                 }
               },
               "safeoutputs": {
@@ -494,7 +449,7 @@ jobs:
               actor: context.actor,
               event_name: context.eventName,
               staged: false,
-              allowed_domains: ["github.com"],
+              allowed_domains: ["defaults"],
               firewall_enabled: true,
               awf_version: "v0.13.1",
               awmg_version: "v0.0.94",
@@ -639,12 +594,12 @@ jobs:
       - name: Execute GitHub Copilot CLI
         id: agentic_execution
         # Copilot CLI tool arguments (sorted):
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: |
           set -o pipefail
           GH_AW_TOOL_BINS=""; command -v go >/dev/null 2>&1 && GH_AW_TOOL_BINS="$(go env GOROOT)/bin:$GH_AW_TOOL_BINS"; [ -n "$JAVA_HOME" ] && GH_AW_TOOL_BINS="$JAVA_HOME/bin:$GH_AW_TOOL_BINS"; [ -n "$CARGO_HOME" ] && GH_AW_TOOL_BINS="$CARGO_HOME/bin:$GH_AW_TOOL_BINS"; [ -n "$GEM_HOME" ] && GH_AW_TOOL_BINS="$GEM_HOME/bin:$GH_AW_TOOL_BINS"; [ -n "$CONDA" ] && GH_AW_TOOL_BINS="$CONDA/bin:$GH_AW_TOOL_BINS"; [ -n "$PIPX_BIN_DIR" ] && GH_AW_TOOL_BINS="$PIPX_BIN_DIR:$GH_AW_TOOL_BINS"; [ -n "$SWIFT_PATH" ] && GH_AW_TOOL_BINS="$SWIFT_PATH:$GH_AW_TOOL_BINS"; [ -n "$DOTNET_ROOT" ] && GH_AW_TOOL_BINS="$DOTNET_ROOT:$GH_AW_TOOL_BINS"; export GH_AW_TOOL_BINS
           mkdir -p "$HOME/.cache"
-          sudo -E awf --env-all --env "ANDROID_HOME=${ANDROID_HOME}" --env "ANDROID_NDK=${ANDROID_NDK}" --env "ANDROID_NDK_HOME=${ANDROID_NDK_HOME}" --env "ANDROID_NDK_LATEST_HOME=${ANDROID_NDK_LATEST_HOME}" --env "ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT}" --env "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}" --env "AZURE_EXTENSION_DIR=${AZURE_EXTENSION_DIR}" --env "CARGO_HOME=${CARGO_HOME}" --env "CHROMEWEBDRIVER=${CHROMEWEBDRIVER}" --env "CONDA=${CONDA}" --env "DOTNET_ROOT=${DOTNET_ROOT}" --env "EDGEWEBDRIVER=${EDGEWEBDRIVER}" --env "GECKOWEBDRIVER=${GECKOWEBDRIVER}" --env "GEM_HOME=${GEM_HOME}" --env "GEM_PATH=${GEM_PATH}" --env "GOPATH=${GOPATH}" --env "GOROOT=${GOROOT}" --env "HOMEBREW_CELLAR=${HOMEBREW_CELLAR}" --env "HOMEBREW_PREFIX=${HOMEBREW_PREFIX}" --env "HOMEBREW_REPOSITORY=${HOMEBREW_REPOSITORY}" --env "JAVA_HOME=${JAVA_HOME}" --env "JAVA_HOME_11_X64=${JAVA_HOME_11_X64}" --env "JAVA_HOME_17_X64=${JAVA_HOME_17_X64}" --env "JAVA_HOME_21_X64=${JAVA_HOME_21_X64}" --env "JAVA_HOME_25_X64=${JAVA_HOME_25_X64}" --env "JAVA_HOME_8_X64=${JAVA_HOME_8_X64}" --env "NVM_DIR=${NVM_DIR}" --env "PIPX_BIN_DIR=${PIPX_BIN_DIR}" --env "PIPX_HOME=${PIPX_HOME}" --env "RUSTUP_HOME=${RUSTUP_HOME}" --env "SELENIUM_JAR_PATH=${SELENIUM_JAR_PATH}" --env "SWIFT_PATH=${SWIFT_PATH}" --env "VCPKG_INSTALLATION_ROOT=${VCPKG_INSTALLATION_ROOT}" --env "GH_AW_TOOL_BINS=$GH_AW_TOOL_BINS" --container-workdir "${GITHUB_WORKSPACE}" --mount /tmp:/tmp:rw --mount "${HOME}/.cache:${HOME}/.cache:rw" --mount "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw" --mount /usr/bin/cat:/usr/bin/cat:ro --mount /usr/bin/curl:/usr/bin/curl:ro --mount /usr/bin/date:/usr/bin/date:ro --mount /usr/bin/find:/usr/bin/find:ro --mount /usr/bin/gh:/usr/bin/gh:ro --mount /usr/bin/grep:/usr/bin/grep:ro --mount /usr/bin/jq:/usr/bin/jq:ro --mount /usr/bin/yq:/usr/bin/yq:ro --mount /usr/bin/cp:/usr/bin/cp:ro --mount /usr/bin/cut:/usr/bin/cut:ro --mount /usr/bin/diff:/usr/bin/diff:ro --mount /usr/bin/head:/usr/bin/head:ro --mount /usr/bin/ls:/usr/bin/ls:ro --mount /usr/bin/mkdir:/usr/bin/mkdir:ro --mount /usr/bin/rm:/usr/bin/rm:ro --mount /usr/bin/sed:/usr/bin/sed:ro --mount /usr/bin/sort:/usr/bin/sort:ro --mount /usr/bin/tail:/usr/bin/tail:ro --mount /usr/bin/wc:/usr/bin/wc:ro --mount /usr/bin/which:/usr/bin/which:ro --mount /usr/local/bin/copilot:/usr/local/bin/copilot:ro --mount /home/runner/.copilot:/home/runner/.copilot:rw --mount /opt/hostedtoolcache:/opt/hostedtoolcache:ro --mount /opt/gh-aw:/opt/gh-aw:ro --allow-domains api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.githubcopilot.com,api.individual.githubcopilot.com,github.com,host.docker.internal,raw.githubusercontent.com,registry.npmjs.org --log-level info --proxy-logs-dir /tmp/gh-aw/sandbox/firewall/logs --enable-host-access --image-tag 0.13.1 --agent-image act \
+          sudo -E awf --env-all --env "ANDROID_HOME=${ANDROID_HOME}" --env "ANDROID_NDK=${ANDROID_NDK}" --env "ANDROID_NDK_HOME=${ANDROID_NDK_HOME}" --env "ANDROID_NDK_LATEST_HOME=${ANDROID_NDK_LATEST_HOME}" --env "ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT}" --env "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}" --env "AZURE_EXTENSION_DIR=${AZURE_EXTENSION_DIR}" --env "CARGO_HOME=${CARGO_HOME}" --env "CHROMEWEBDRIVER=${CHROMEWEBDRIVER}" --env "CONDA=${CONDA}" --env "DOTNET_ROOT=${DOTNET_ROOT}" --env "EDGEWEBDRIVER=${EDGEWEBDRIVER}" --env "GECKOWEBDRIVER=${GECKOWEBDRIVER}" --env "GEM_HOME=${GEM_HOME}" --env "GEM_PATH=${GEM_PATH}" --env "GOPATH=${GOPATH}" --env "GOROOT=${GOROOT}" --env "HOMEBREW_CELLAR=${HOMEBREW_CELLAR}" --env "HOMEBREW_PREFIX=${HOMEBREW_PREFIX}" --env "HOMEBREW_REPOSITORY=${HOMEBREW_REPOSITORY}" --env "JAVA_HOME=${JAVA_HOME}" --env "JAVA_HOME_11_X64=${JAVA_HOME_11_X64}" --env "JAVA_HOME_17_X64=${JAVA_HOME_17_X64}" --env "JAVA_HOME_21_X64=${JAVA_HOME_21_X64}" --env "JAVA_HOME_25_X64=${JAVA_HOME_25_X64}" --env "JAVA_HOME_8_X64=${JAVA_HOME_8_X64}" --env "NVM_DIR=${NVM_DIR}" --env "PIPX_BIN_DIR=${PIPX_BIN_DIR}" --env "PIPX_HOME=${PIPX_HOME}" --env "RUSTUP_HOME=${RUSTUP_HOME}" --env "SELENIUM_JAR_PATH=${SELENIUM_JAR_PATH}" --env "SWIFT_PATH=${SWIFT_PATH}" --env "VCPKG_INSTALLATION_ROOT=${VCPKG_INSTALLATION_ROOT}" --env "GH_AW_TOOL_BINS=$GH_AW_TOOL_BINS" --container-workdir "${GITHUB_WORKSPACE}" --mount /tmp:/tmp:rw --mount "${HOME}/.cache:${HOME}/.cache:rw" --mount "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw" --mount /usr/bin/cat:/usr/bin/cat:ro --mount /usr/bin/curl:/usr/bin/curl:ro --mount /usr/bin/date:/usr/bin/date:ro --mount /usr/bin/find:/usr/bin/find:ro --mount /usr/bin/gh:/usr/bin/gh:ro --mount /usr/bin/grep:/usr/bin/grep:ro --mount /usr/bin/jq:/usr/bin/jq:ro --mount /usr/bin/yq:/usr/bin/yq:ro --mount /usr/bin/cp:/usr/bin/cp:ro --mount /usr/bin/cut:/usr/bin/cut:ro --mount /usr/bin/diff:/usr/bin/diff:ro --mount /usr/bin/head:/usr/bin/head:ro --mount /usr/bin/ls:/usr/bin/ls:ro --mount /usr/bin/mkdir:/usr/bin/mkdir:ro --mount /usr/bin/rm:/usr/bin/rm:ro --mount /usr/bin/sed:/usr/bin/sed:ro --mount /usr/bin/sort:/usr/bin/sort:ro --mount /usr/bin/tail:/usr/bin/tail:ro --mount /usr/bin/wc:/usr/bin/wc:ro --mount /usr/bin/which:/usr/bin/which:ro --mount /usr/local/bin/copilot:/usr/local/bin/copilot:ro --mount /home/runner/.copilot:/home/runner/.copilot:rw --mount /opt/hostedtoolcache:/opt/hostedtoolcache:ro --mount /opt/gh-aw:/opt/gh-aw:ro --allow-domains api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.githubcopilot.com,api.individual.githubcopilot.com,api.snapcraft.io,archive.ubuntu.com,azure.archive.ubuntu.com,crl.geotrust.com,crl.globalsign.com,crl.identrust.com,crl.sectigo.com,crl.thawte.com,crl.usertrust.com,crl.verisign.com,crl3.digicert.com,crl4.digicert.com,crls.ssl.com,github.com,host.docker.internal,json-schema.org,json.schemastore.org,keyserver.ubuntu.com,ocsp.digicert.com,ocsp.geotrust.com,ocsp.globalsign.com,ocsp.identrust.com,ocsp.sectigo.com,ocsp.ssl.com,ocsp.thawte.com,ocsp.usertrust.com,ocsp.verisign.com,packagecloud.io,packages.cloud.google.com,packages.microsoft.com,ppa.launchpad.net,raw.githubusercontent.com,registry.npmjs.org,s.symcb.com,s.symcd.com,security.ubuntu.com,ts-crl.ws.symantec.com,ts-ocsp.ws.symantec.com --log-level info --proxy-logs-dir /tmp/gh-aw/sandbox/firewall/logs --enable-host-access --image-tag 0.13.1 --agent-image act \
             -- 'source /opt/gh-aw/actions/sanitize_path.sh "$GH_AW_TOOL_BINS$(find /opt/hostedtoolcache -maxdepth 4 -type d -name bin 2>/dev/null | tr '\''\n'\'' '\'':'\'')$PATH" && /usr/local/bin/copilot --add-dir /tmp/gh-aw/ --log-level all --log-dir /tmp/gh-aw/sandbox/agent/logs/ --add-dir "${GITHUB_WORKSPACE}" --disable-builtin-mcps --allow-all-tools --allow-all-paths --share /tmp/gh-aw/sandbox/agent/logs/conversation.md --prompt "$(cat /tmp/gh-aw/aw-prompts/prompt.txt)"${GH_AW_MODEL_AGENT_COPILOT:+ --model "$GH_AW_MODEL_AGENT_COPILOT"}' \
             2>&1 | tee /tmp/gh-aw/agent-stdio.log
         env:
@@ -695,11 +650,10 @@ jobs:
             const { main } = require('/opt/gh-aw/actions/redact_secrets.cjs');
             await main();
         env:
-          GH_AW_SECRET_NAMES: 'COPILOT_GITHUB_TOKEN,GH_AW_GITHUB_MCP_SERVER_TOKEN,GH_AW_GITHUB_TOKEN,GH_CONFIG_PRIVATE_KEY,GITHUB_TOKEN'
+          GH_AW_SECRET_NAMES: 'COPILOT_GITHUB_TOKEN,GH_AW_GITHUB_MCP_SERVER_TOKEN,GH_AW_GITHUB_TOKEN,GITHUB_TOKEN'
           SECRET_COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           SECRET_GH_AW_GITHUB_MCP_SERVER_TOKEN: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN }}
           SECRET_GH_AW_GITHUB_TOKEN: ${{ secrets.GH_AW_GITHUB_TOKEN }}
-          SECRET_GH_CONFIG_PRIVATE_KEY: ${{ secrets.GH_CONFIG_PRIVATE_KEY }}
           SECRET_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload Safe Outputs
         if: always()
@@ -713,7 +667,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_SAFE_OUTPUTS: ${{ env.GH_AW_SAFE_OUTPUTS }}
-          GH_AW_ALLOWED_DOMAINS: "api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.githubcopilot.com,api.individual.githubcopilot.com,github.com,host.docker.internal,raw.githubusercontent.com,registry.npmjs.org"
+          GH_AW_ALLOWED_DOMAINS: "api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.githubcopilot.com,api.individual.githubcopilot.com,api.snapcraft.io,archive.ubuntu.com,azure.archive.ubuntu.com,crl.geotrust.com,crl.globalsign.com,crl.identrust.com,crl.sectigo.com,crl.thawte.com,crl.usertrust.com,crl.verisign.com,crl3.digicert.com,crl4.digicert.com,crls.ssl.com,github.com,host.docker.internal,json-schema.org,json.schemastore.org,keyserver.ubuntu.com,ocsp.digicert.com,ocsp.geotrust.com,ocsp.globalsign.com,ocsp.identrust.com,ocsp.sectigo.com,ocsp.ssl.com,ocsp.thawte.com,ocsp.usertrust.com,ocsp.verisign.com,packagecloud.io,packages.cloud.google.com,packages.microsoft.com,ppa.launchpad.net,raw.githubusercontent.com,registry.npmjs.org,s.symcb.com,s.symcd.com,security.ubuntu.com,ts-crl.ws.symantec.com,ts-ocsp.ws.symantec.com"
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_API_URL: ${{ github.api_url }}
         with:
@@ -780,19 +734,6 @@ jobs:
             /tmp/gh-aw/sandbox/firewall/logs/
             /tmp/gh-aw/agent-stdio.log
           if-no-files-found: ignore
-      - name: Invalidate GitHub App token
-        if: always() && steps.github-mcp-app-token.outputs.token != ''
-        env:
-          TOKEN: ${{ steps.github-mcp-app-token.outputs.token }}
-        run: |
-          echo "Revoking GitHub App installation token..."
-          # GitHub CLI will auth with the token being revoked.
-          gh api \
-            --method DELETE \
-            -H "Authorization: token $TOKEN" \
-            /installation/token || echo "Token revoke may already be expired."
-          
-          echo "Token invalidation step complete."
 
   conclusion:
     needs:
@@ -816,19 +757,6 @@ jobs:
         uses: github/gh-aw/actions/setup@76d37d925abd44fee97379206f105b74b91a285b # v0.40.0
         with:
           destination: /opt/gh-aw/actions
-      - name: Generate GitHub App token
-        id: safe-outputs-app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
-        with:
-          app-id: ${{ vars.GH_CONFIG_APP_ID }}
-          private-key: ${{ secrets.GH_CONFIG_PRIVATE_KEY }}
-          owner: nathlan
-          repositories: alz-subscriptions,github-config
-          github-api-url: ${{ github.api_url }}
-          permission-contents: read
-          permission-discussions: write
-          permission-issues: write
-          permission-pull-requests: write
       - name: Debug job inputs
         env:
           COMMENT_ID: ${{ needs.activation.outputs.comment_id }}
@@ -859,7 +787,7 @@ jobs:
           GH_AW_NOOP_MAX: 1
           GH_AW_WORKFLOW_NAME: "ALZ Landing Zone → GitHub Config Repo Provisioner"
         with:
-          github-token: ${{ steps.safe-outputs-app-token.outputs.token }}
+          github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
             const { setupGlobals } = require('/opt/gh-aw/actions/setup_globals.cjs');
             setupGlobals(core, github, context, exec, io);
@@ -872,7 +800,7 @@ jobs:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
           GH_AW_WORKFLOW_NAME: "ALZ Landing Zone → GitHub Config Repo Provisioner"
         with:
-          github-token: ${{ steps.safe-outputs-app-token.outputs.token }}
+          github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
             const { setupGlobals } = require('/opt/gh-aw/actions/setup_globals.cjs');
             setupGlobals(core, github, context, exec, io);
@@ -888,7 +816,7 @@ jobs:
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
           GH_AW_SECRET_VERIFICATION_RESULT: ${{ needs.agent.outputs.secret_verification_result }}
         with:
-          github-token: ${{ steps.safe-outputs-app-token.outputs.token }}
+          github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
             const { setupGlobals } = require('/opt/gh-aw/actions/setup_globals.cjs');
             setupGlobals(core, github, context, exec, io);
@@ -906,25 +834,12 @@ jobs:
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
           GH_AW_DETECTION_CONCLUSION: ${{ needs.detection.result }}
         with:
-          github-token: ${{ steps.safe-outputs-app-token.outputs.token }}
+          github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
             const { setupGlobals } = require('/opt/gh-aw/actions/setup_globals.cjs');
             setupGlobals(core, github, context, exec, io);
             const { main } = require('/opt/gh-aw/actions/notify_comment_error.cjs');
             await main();
-      - name: Invalidate GitHub App token
-        if: always() && steps.safe-outputs-app-token.outputs.token != ''
-        env:
-          TOKEN: ${{ steps.safe-outputs-app-token.outputs.token }}
-        run: |
-          echo "Revoking GitHub App installation token..."
-          # GitHub CLI will auth with the token being revoked.
-          gh api \
-            --method DELETE \
-            -H "Authorization: token $TOKEN" \
-            /installation/token || echo "Token revoke may already be expired."
-          
-          echo "Token invalidation step complete."
 
   detection:
     needs: agent
@@ -1055,9 +970,7 @@ jobs:
     runs-on: ubuntu-slim
     permissions:
       contents: read
-      discussions: write
       issues: write
-      pull-requests: write
     timeout-minutes: 15
     env:
       GH_AW_ENGINE_ID: "copilot"
@@ -1082,28 +995,15 @@ jobs:
           mkdir -p /tmp/gh-aw/safeoutputs/
           find "/tmp/gh-aw/safeoutputs/" -type f -print
           echo "GH_AW_AGENT_OUTPUT=/tmp/gh-aw/safeoutputs/agent_output.json" >> "$GITHUB_ENV"
-      - name: Generate GitHub App token
-        id: safe-outputs-app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
-        with:
-          app-id: ${{ vars.GH_CONFIG_APP_ID }}
-          private-key: ${{ secrets.GH_CONFIG_PRIVATE_KEY }}
-          owner: nathlan
-          repositories: alz-subscriptions,github-config
-          github-api-url: ${{ github.api_url }}
-          permission-contents: read
-          permission-discussions: write
-          permission-issues: write
-          permission-pull-requests: write
       - name: Process Safe Outputs
         id: process_safe_outputs
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":1},\"create_issue\":{\"assignees\":[\"copilot\"],\"max\":1},\"missing_data\":{},\"missing_tool\":{}}"
+          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"create_issue\":{\"assignees\":[\"copilot\"],\"labels\":[\"automation\",\"alz-vending\"],\"max\":1,\"target-repo\":\"nathlan/github-config\",\"title_prefix\":\"feat: add new ALZ repo \"},\"missing_data\":{},\"missing_tool\":{}}"
           GH_AW_ASSIGN_COPILOT: "true"
         with:
-          github-token: ${{ steps.safe-outputs-app-token.outputs.token }}
+          github-token: ${{ secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
             const { setupGlobals } = require('/opt/gh-aw/actions/setup_globals.cjs');
             setupGlobals(core, github, context, exec, io);
@@ -1115,23 +1015,10 @@ jobs:
         env:
           GH_AW_ISSUES_TO_ASSIGN_COPILOT: ${{ steps.process_safe_outputs.outputs.issues_to_assign_copilot }}
         with:
-          github-token: ${{ steps.safe-outputs-app-token.outputs.token }}
+          github-token: ${{ secrets.GH_AW_AGENT_TOKEN || secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
             const { setupGlobals } = require('/opt/gh-aw/actions/setup_globals.cjs');
             setupGlobals(core, github, context, exec, io);
             const { main } = require('/opt/gh-aw/actions/assign_copilot_to_created_issues.cjs');
             await main();
-      - name: Invalidate GitHub App token
-        if: always() && steps.safe-outputs-app-token.outputs.token != ''
-        env:
-          TOKEN: ${{ steps.safe-outputs-app-token.outputs.token }}
-        run: |
-          echo "Revoking GitHub App installation token..."
-          # GitHub CLI will auth with the token being revoked.
-          gh api \
-            --method DELETE \
-            -H "Authorization: token $TOKEN" \
-            /installation/token || echo "Token revoke may already be expired."
-          
-          echo "Token invalidation step complete."
 

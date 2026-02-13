@@ -6,33 +6,15 @@ on:
     paths: ["terraform/terraform.tfvars"]
 permissions:
   contents: read
-  actions: read 
-tools:
-  github:
-    toolsets: [repos, issues, pull_requests, actions]
-    app:
-      app-id: ${{ vars.GH_CONFIG_APP_ID }}
-      private-key: ${{ secrets.GH_CONFIG_PRIVATE_KEY }}
-      owner: "nathlan"
-      repositories: ["alz-subscriptions", "github-config"]
+  issues: read
+  pull-requests: read
 safe-outputs:
-  app:
-    app-id: ${{ vars.GH_CONFIG_APP_ID }}
-    private-key: ${{ secrets.GH_CONFIG_PRIVATE_KEY }}
-    owner: "nathlan"
-    repositories: ["alz-subscriptions", "github-config"]
   create-issue:
-    target-repo: "nathlan/github-config"
-    assignees: copilot
+    assignees: [copilot]
     max: 1
     title-prefix: "feat: add new ALZ repo "
     labels: [automation, alz-vending]
-  add-comment:
-    max: 1
-timeout-minutes: 10
-network:
-  allowed:
-    - "github.com"
+    target-repo: "nathlan/github-config"
 ---
 
 # ALZ Landing Zone → GitHub Config Repo Provisioner
