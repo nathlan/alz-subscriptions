@@ -6,9 +6,10 @@ on:
     paths: ["terraform/terraform.tfvars"]
 permissions:
   contents: read
+  actions: read 
 tools:
   github:
-    toolsets: [repos]
+    toolsets: [issues]
 safe-outputs:
   github-token: ${{ secrets.GH_AW_GITHUB_TOKEN }}
   create-issue:
