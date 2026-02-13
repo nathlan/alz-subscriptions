@@ -278,3 +278,52 @@ landing_zones = {
     }
   }
 }
+
+# ========================================
+# GitHub Repository Configuration
+# ========================================
+
+github_repositories = {
+  alz-handover-prod = {
+    name        = "alz-handover-prod"
+    description = "Production workload repository for handover team - Azure Landing Zone"
+    visibility  = "internal"
+    topics      = ["azure", "terraform", "handover"]
+
+    # Use the standard workload template
+    template = {
+      owner      = "nathlan"
+      repository = "alz-workload-template"
+    }
+
+    # Repository Settings
+    has_issues             = true
+    has_projects           = false
+    has_wiki               = false
+    delete_branch_on_merge = true
+    allow_squash_merge     = true
+    allow_merge_commit     = false
+    allow_rebase_merge     = false
+
+    # Team Access
+    team_access = {
+      platform-engineering = "admin"
+    }
+
+    # Branch Protection for main branch
+    branch_protection = {
+      required_approving_review_count   = 1
+      dismiss_stale_reviews_on_push     = true
+      require_code_owner_review         = false
+      require_last_push_approval        = false
+      required_review_thread_resolution = true
+      required_status_checks = [
+        { context = "terraform-plan" },
+        { context = "security-scan" }
+      ]
+      strict_required_status_checks_policy = true
+      non_fast_forward                     = true
+      bypass_actors                        = []
+    }
+  }
+}
