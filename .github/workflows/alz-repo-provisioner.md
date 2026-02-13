@@ -9,14 +9,23 @@ permissions:
   actions: read 
 tools:
   github:
-    toolsets: [issues]
+    toolsets: [repos, issues, pull_requests, actions]
+    app:
+      app-id: ${{ vars.GH_CONFIG_APP_ID }}
+      private-key: ${{ secrets.GH_CONFIG_PRIVATE_KEY }}
+      owner: "nathlan"
+      repositories: ["alz-subscriptions", "github-config"]
 safe-outputs:
-  github-token: ${{ secrets.GH_AW_GITHUB_TOKEN }}
+  app:
+    app-id: ${{ vars.GH_CONFIG_APP_ID }}
+    private-key: ${{ secrets.GH_CONFIG_PRIVATE_KEY }}
+    owner: "nathlan"
+    repositories: ["alz-subscriptions", "github-config"]
   create-issue:
     target-repo: "nathlan/github-config"
     assignees: copilot
     max: 1
-    title-prefix: "feat(repo): "
+    title-prefix: "feat: add new ALZ repo "
     labels: [automation, alz-vending]
   add-comment:
     max: 1
