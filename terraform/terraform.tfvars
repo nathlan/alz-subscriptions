@@ -155,6 +155,47 @@ landing_zones = {
     }
   }
 
+  example-api-test = {
+    workload = "example-api-test"
+    env      = "test"
+    team     = "platform-engineering"
+    location = "australiaeast"
+
+    subscription_tags = {
+      cost_center = "COST-01"
+      owner       = "platform-engineering"
+    }
+
+    # Virtual network with subnets
+    spoke_vnet = {
+      ipv4_address_spaces = {
+        default_address_space = {
+          address_space_cidr = "/24"
+          subnets = {
+            default = {
+              subnet_prefixes = ["/26"]
+            }
+            app = {
+              subnet_prefixes = ["/26"]
+            }
+          }
+        }
+      }
+    }
+
+    # Budget with notifications
+    budget = {
+      monthly_amount             = 500
+      alert_threshold_percentage = 80
+      alert_contact_emails       = ["team@example.com"]
+    }
+
+    # GitHub OIDC federated credentials
+    federated_credentials_github = {
+      repository = "alz-test-api-repo"
+    }
+  }
+
   handover-test = {
     workload = "handover"
     env      = "test"
