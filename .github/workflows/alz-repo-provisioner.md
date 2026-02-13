@@ -7,11 +7,13 @@ on:
 permissions:
   contents: read
   actions: read
+  issues: read
+  pull-requests: read
 tools:
   github:
-    toolsets: [repos]
-    read-only: true
+    toolsets: [default]
 safe-outputs:
+  github-token: ${{ secrets.GH_AW_GITHUB_TOKEN }}
   create-issue:
     target-repo: "nathlan/github-config"
     assignees: copilot
@@ -43,13 +45,20 @@ When a new landing zone entry is merged into `terraform/terraform.tfvars`, extra
 
 ### Step 1: Identify What Changed
 
-Use the git diff between the before and after commits to find what was added to `terraform/terraform.tfvars`:
+Get the diff of `terraform/terraform.tfvars` using the GitHub API (more reliable than local git history in Actions):
 
+```bash
+curl -s -H "Accept: application/vnd.github.v3.diff" \
+  "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.event.after }}" | \
+  grep -A 200 "terraform/terraform.tfvars"
+```
+
+Or if the before commit exists locally, use git:
 ```bash
 git diff ${{ github.event.before }}..${{ github.event.after }} -- terraform/terraform.tfvars
 ```
 
-Look specifically for **newly added** landing zone entries in the `landing_zones` map.
+Look specifically for **newly added** landing zone entries in the `landing_zones` map (lines with `+` prefix).
 
 ### Step 2: Parse the New Landing Zone Entry
 
