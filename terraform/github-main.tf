@@ -79,17 +79,18 @@ resource "github_repository_ruleset" "branch_protection" {
     dynamic "required_status_checks" {
       for_each = length(each.value.branch_protection.required_status_checks) > 0 ? [1] : []
       content {
-        required_check {
-          context = "terraform-plan"
-        }
-        required_check {
-          context = "security-scan"
+        dynamic "required_check" {
+          for_each = each.value.branch_protection.required_status_checks
+          content {
+            context = required_check.value
+          }
         }
         strict_required_status_checks_policy = each.value.branch_protection.require_branch_up_to_date
       }
     }
 
-    # Require conversation resolution before merging
+    # Require conversation resolution before merging (if supported by provider)
+    # Note: This may need to be configured via pull_request block or separate setting
     required_linear_history = false
     required_signatures     = false
   }
