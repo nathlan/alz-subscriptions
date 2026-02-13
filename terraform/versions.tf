@@ -17,5 +17,9 @@ terraform {
       source  = "hashicorp/time"
       version = ">= 0.9, < 1.0"
     }
+    github = {
+      source  = "integrations/github"
+      version = "~> 6.0"
+    }
   }
 }
