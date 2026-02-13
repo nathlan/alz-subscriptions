@@ -1,29 +1,6 @@
 # ==============================================================================
 # Azure Landing Zone Subscription Vending
 # ==============================================================================
-# This root module calls the private LZ vending module to provision Corp
-# landing zones with subscription, networking, identity, and budgets.
-# ==============================================================================
-
-terraform {
-  required_version = ">= 1.10.0"
-
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 4.0"
-    }
-    time = {
-      source  = "hashicorp/time"
-      version = ">= 0.9, < 1.0"
-    }
-  }
-}
-
-provider "azurerm" {
-  features {}
-  use_oidc = true
-}
 
 # ==============================================================================
 # Landing Zone Vending Module
@@ -38,7 +15,7 @@ provider "azurerm" {
 # ==============================================================================
 
 module "landing_zones" {
-  source = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.0.4"
+  source = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.0.6"
 
   # Common configuration shared across all landing zones
   subscription_billing_scope       = var.subscription_billing_scope

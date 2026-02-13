@@ -33,14 +33,17 @@ on:
         required: false
         type: choice
         options:
-          - azure-landing-zones
-        default: 'azure-landing-zones'
+          - production
+          - staging
+          - development
+        default: 'production'
 
 permissions:
   contents: read
   pull-requests: write
   id-token: write
   issues: write
+  security-events: write
 
 jobs:
   # Call the parent reusable workflow from the central repository
@@ -50,10 +53,10 @@ jobs:
 
     with:
       # REQUIRED: Deployment environment (must match environment in repo settings)
-      environment: ${{ inputs.environment || 'azure-landing-zones' }}
+      environment: ${{ inputs.environment || 'production' }}
 
-      # OPTIONAL: Override Terraform version if needed (default: 1.10.5)
-      terraform-version: '1.10.5'
+      # OPTIONAL: Override Terraform version if needed (default: latest)
+      # terraform-version:
 
       # REQUIRED: Working directory containing Terraform code
       working-directory: 'terraform'
@@ -63,6 +66,8 @@ jobs:
 
     secrets:
       # REQUIRED: Azure OIDC credentials (configure in repository settings)
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      # SECURITY: Two separate User-Assigned Managed Identities for least-privilege access
+      AZURE_CLIENT_ID_PLAN: ${{ secrets.AZURE_CLIENT_ID_PLAN }}   # Reader role for plan
+      AZURE_CLIENT_ID_APPLY: ${{ secrets.AZURE_CLIENT_ID_APPLY }} # Owner role for apply
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}

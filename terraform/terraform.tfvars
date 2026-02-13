@@ -1,8 +1,7 @@
 # ==============================================================================
 # Example Production Application Landing Zone
 # ==============================================================================
-# This is a reference example for production workload landing zones using the
-# new v1.0.4 interface with auto-generated naming and smart defaults.
+# This is a reference example for production workload landing zones
 # ==============================================================================
 
 # ========================================
@@ -112,6 +111,47 @@ landing_zones = {
     # GitHub OIDC federated credentials
     federated_credentials_github = {
       repository = "test-app-lz"
+    }
+  }
+
+  example-api-dev = {
+    workload = "example-api"
+    env      = "dev"
+    team     = "platform-engineering"
+    location = "australiaeast"
+
+    subscription_tags = {
+      cost_center = "COST-01"
+      owner       = "platform-engineering"
+    }
+
+    # Virtual network with subnets
+    spoke_vnet = {
+      ipv4_address_spaces = {
+        default_address_space = {
+          address_space_cidr = "/24"
+          subnets = {
+            default = {
+              subnet_prefixes = ["/26"]
+            }
+            app = {
+              subnet_prefixes = ["/26"]
+            }
+          }
+        }
+      }
+    }
+
+    # Budget with notifications
+    budget = {
+      monthly_amount             = 500
+      alert_threshold_percentage = 80
+      alert_contact_emails       = ["team@example.com"]
+    }
+
+    # GitHub OIDC federated credentials
+    federated_credentials_github = {
+      repository = "alz-app-repo"
     }
   }
 }
