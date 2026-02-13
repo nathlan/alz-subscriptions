@@ -278,3 +278,36 @@ landing_zones = {
     }
   }
 }
+
+# ========================================
+# GitHub Repositories Configuration
+# ========================================
+#
+# Manages GitHub workload repositories with team access and branch protection
+
+github_repositories = {
+  alz-app-repo = {
+    name                   = "alz-app-repo"
+    description            = "Workload repository for example-api application"
+    visibility             = "internal"
+    template_owner         = "nathlan"
+    template_repository    = "alz-workload-template"
+    topics                 = ["azure", "terraform", "example-api"]
+    delete_branch_on_merge = true
+    allow_squash_merge     = true
+    allow_merge_commit     = false
+    allow_rebase_merge     = false
+
+    team_access = {
+      platform-engineering = "admin"
+    }
+
+    branch_protection = {
+      pattern                         = "main"
+      required_approving_review_count = 1
+      required_status_checks          = ["terraform-plan", "security-scan"]
+      require_conversation_resolution = true
+      require_branch_up_to_date       = true
+    }
+  }
+}
