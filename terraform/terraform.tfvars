@@ -155,9 +155,9 @@ landing_zones = {
     }
   }
 
-  handover-dev = {
+  handover-test = {
     workload = "handover"
-    env      = "dev"
+    env      = "test"
     team     = "platform-engineering"
     location = "australiaeast"
 
@@ -192,7 +192,7 @@ landing_zones = {
 
     # GitHub OIDC federated credentials
     federated_credentials_github = {
-      repository = "alz-handover"
+      repository = "alz-handover-test"
     }
   }
 }

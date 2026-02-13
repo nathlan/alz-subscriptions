@@ -12,15 +12,14 @@ tools:
     toolsets: [repos]
     read-only: true
 safe-outputs:
-  create-agent-session:
+  create-issue:
     target-repo: "nathlan/github-config"
-    base: main
+    assignees: copilot
+    max: 1
+    title-prefix: "feat(repo): "
+    labels: [automation, alz-vending]
   add-comment:
     max: 1
-  create-issue:
-    max: 1
-    title-prefix: "[alz-provisioner] "
-    labels: [automation, alz-vending]
 timeout-minutes: 10
 network:
   allowed:
@@ -40,7 +39,7 @@ You are an orchestration agent that detects newly provisioned Azure Landing Zone
 
 ## Your Mission
 
-When a new landing zone entry is merged into `terraform/terraform.tfvars`, extract the workload repository name and team, then dispatch the Copilot coding agent to the `nathlan/github-config` repository to create a Terraform PR that provisions the new workload repo.
+When a new landing zone entry is merged into `terraform/terraform.tfvars`, extract the workload repository name and team, then create an issue in the `nathlan/github-config` repository with the task description. Copilot will be automatically assigned to the issue and will create a Terraform PR that provisions the new workload repo.
 
 ### Step 1: Identify What Changed
 
@@ -86,13 +85,13 @@ Before dispatching, verify:
 
 If validation fails, create an issue describing the problem and stop.
 
-### Step 4: Dispatch Copilot Coding Agent to github-config
+### Step 4: Create Issue to Dispatch Copilot Coding Agent
 
-Create an agent session targeting `nathlan/github-config` with this problem statement:
+Create an issue in `nathlan/github-config` using the `create-issue` safe output. Copilot will be automatically assigned to the issue and will create a PR.
 
-**Title**: `feat(repo): Create workload repository — {repository}`
+**Title**: `Create workload repository — {repository}`
 
-**Problem Statement** (adapt based on extracted values):
+**Body** (adapt based on extracted values):
 
 ```
 Create a new workload repository using Terraform in this github-config repository.
@@ -141,7 +140,7 @@ Follow the GitHub Configuration Agent instructions in this repository to:
 
 ### Step 5: Report Outcome
 
-After dispatching the agent session, report what happened. If the dispatch was successful, the safe output processor will handle the Copilot session creation.
+After creating the issue, report what happened. Copilot will be automatically assigned and will create a PR in `nathlan/github-config`.
 
 If there was nothing to dispatch (no new landing zones), use the `noop` safe output with a message like:
 "Push to terraform.tfvars detected but no new landing zone entries were added. No workload repository provisioning needed."
