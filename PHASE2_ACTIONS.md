@@ -67,7 +67,6 @@ After the Terraform deployment is complete and the subscription is provisioned:
 
 3. Configuration required:
    - **Team Access:**
-     - platform-engineering: admin
      - platform-engineering: maintain
    
    - **Branch Protection (main):**
