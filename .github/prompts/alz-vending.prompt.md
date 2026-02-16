@@ -1,8 +1,7 @@
 ---
-name: alz-vending
+name: landing-zone-vending
 description: Provision a new Azure Landing Zone — collects inputs, validates, then delegates to cloud coding agent
 agent: ALZ Subscription Vending
-tools: ['read', 'search', 'github/*']
 ---
 
 # Provision Azure Landing Zone

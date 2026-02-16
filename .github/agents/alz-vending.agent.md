@@ -2,7 +2,7 @@
 name: ALZ Subscription Vending
 description: Self-service Azure Landing Zone provisioning — map-based configuration in alz-subscriptions repository with optional workload repo creation
 tools:
-  ['read', 'search', 'edit', 'execute', 'github/*', 'agent']
+  ['vscode/askQuestions', 'execute', 'read', 'agent', 'edit', 'search', 'github/*']
 mcp-servers:
   github-mcp-server:
     type: http
