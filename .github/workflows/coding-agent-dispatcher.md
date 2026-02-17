@@ -95,10 +95,10 @@ These tools are injected by the safe-outputs runtime. They are the ONLY way to p
 
 Use the following deterministic mapping. Each label corresponds to exactly one custom agent name:
 
-| Issue Label     | Agent Name                   | Repository Context          | Description                                       |
-|-----------------|------------------------------|-----------------------------|---------------------------------------------------|
-| `alz-vending`   | `ALZ Subscription Vending`   | `nathlan/alz-subscriptions` | Azure Landing Zone provisioning via Terraform     |
-| `github-config` | `GitHub Configuration Agent` | `nathlan/github-config`     | Manages GitHub Configuration via Terraform        |
+| Issue Label     | Agent Slug       | Repository Context          | Description                                       |
+|-----------------|------------------|-----------------------------|---------------------------------------------------|
+| `alz-vending`   | `alz-vending`    | `nathlan/alz-subscriptions` | Azure Landing Zone provisioning via Terraform     |
+| `github-config` | `github-config`  | `nathlan/github-config`     | Manages GitHub Configuration via Terraform        |
 
 **The label must be an exact match.** Only labels listed in the routing table above should trigger any action.
 
@@ -111,8 +111,8 @@ This is the same regardless of which repository this workflow runs in.
 1. **Read the issue**: Call the `issue_read` tool to get the labels on issue #${{ github.event.issue.number }}.
 2. **Match labels against routing rules**: Check if any of the issue's labels match a label in the routing table above.
 3. **Assign the agent**: If exactly one matching label is found, call the `assign_to_agent` tool with:
-   - `agent_name`: The corresponding agent name from the routing table
-   - Let the target resolve automatically from the triggering issue context
+   - `agent`: The corresponding agent slug from the routing table (e.g., `alz-vending` or `github-config`)
+   - `issue_number`: The triggering issue number
 4. **No match**: If none of the issue's labels match any routing rule, use the `noop` tool to log: `"No routing rule matched for issue #<number>. Labels: [<labels>]. No agent assigned."`
 5. **Multiple matches**: If more than one label matches different agents, use the `noop` tool to log: `"Multiple agent labels found on issue #<number>: [<labels>]. Skipping assignment — resolve manually."`
 
