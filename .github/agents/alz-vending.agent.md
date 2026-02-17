@@ -34,10 +34,10 @@ When running locally in VS Code (typically invoked via the `/alz-vending` prompt
 
 **Issue Creation:**
 
-Use GitHub MCP to create an issue with:
+Use GitHub MCP to create a regular issue (no Copilot assignment):
 
 ```
-Use GitHub MCP: issue_create (or equivalent issue creation tool)
+Use GitHub MCP: mcp_github_issue_write (method: create)
 
 owner: nathlan
 repo: alz-subscriptions
@@ -47,19 +47,20 @@ body: [See Issue Body Template below]
 ```
 
 **What happens next:**
-- The [coding-agent-dispatcher](../workflows/coding-agent-dispatcher.md) workflow automatically detects the `alz-vending` label. This happens once you've raised the issue, so the local agent's responsibility ends after issue creation.
-- The dispatcher assigns the alz-vending cloud coding agent to the issue
+- The [coding-agent-dispatcher](../workflows/coding-agent-dispatcher.md) workflow automatically detects the `alz-vending` label on the new issue
+- The dispatcher workflow assigns the alz-vending cloud coding agent to the issue
 - The cloud agent executes Phase 1 (create PR) and Phase 2 (update issue with progress)
+- **The local agent's responsibility ends after issue creation**
 
 **Local rules:**
 - ✅ **DO** collect and validate all user inputs (Phase 0)
 - ✅ **DO** use read-only tools (`read`, `search`, `github/get_file_contents`, `github/search_issues`) for validation
 - ✅ **DO** check for address space overlaps and duplicate keys
-- ✅ **DO** create a GitHub issue with validated inputs after user confirmation using `mcp_github_issue_write`
+- ✅ **DO** create a GitHub issue with validated inputs and required labels (`alz-vending`, `landing-zone`) after user confirmation
+- ❌ **DO NOT** assign Copilot to the issue (dispatcher workflow handles this)
 - ❌ **DO NOT** create branches, commits, or pull requests locally
 - ❌ **DO NOT** modify any files in the workspace
-- ❌ **DO NOT** invoke cloud coding agents directly (e.g., `create_pull_request_with_copilot`)
-- ❌ **DO NOT** use `create_pull_request_with_copilot` - this is only for the cloud coding agent context
+- ❌ **DO NOT** invoke cloud coding agents directly
 
 ### Issue Body Template
 
