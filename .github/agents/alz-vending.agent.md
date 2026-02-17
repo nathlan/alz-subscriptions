@@ -55,10 +55,11 @@ body: [See Issue Body Template below]
 - ✅ **DO** collect and validate all user inputs (Phase 0)
 - ✅ **DO** use read-only tools (`read`, `search`, `github/get_file_contents`, `github/search_issues`) for validation
 - ✅ **DO** check for address space overlaps and duplicate keys
-- ✅ **DO** create a GitHub issue with validated inputs after user confirmation
+- ✅ **DO** create a GitHub issue with validated inputs after user confirmation using `mcp_github_issue_write`
 - ❌ **DO NOT** create branches, commits, or pull requests locally
 - ❌ **DO NOT** modify any files in the workspace
-- ❌ **DO NOT** invoke cloud coding agents directly
+- ❌ **DO NOT** invoke cloud coding agents directly (e.g., `create_pull_request_with_copilot`)
+- ❌ **DO NOT** use `create_pull_request_with_copilot` - this is only for the cloud coding agent context
 
 ### Issue Body Template
 

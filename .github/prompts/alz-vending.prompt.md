@@ -39,4 +39,5 @@ Validate the following landing zone request using **Phase 0** from your instruct
 2. Read `terraform/terraform.tfvars` from `nathlan/alz-subscriptions` to check for duplicate keys and address space overlaps
 3. Present a confirmation summary with all validated inputs and computed values (landing zone key, env abbreviation, prefix size)
 4. Include any optional inputs that were provided; omit sections for optional inputs that were not supplied
-5. After confirmation, invoke `github/create_pull_request_with_copilot` to hand off to the same `alz-vending` agent, running in the GitHub cloud coding agent context (Phase 1)
+5. After confirmation, create a GitHub issue with the validated inputs using `mcp_github_issue_write` (labels: `alz-vending`, `landing-zone`)
+6. The coding-agent-dispatcher workflow will automatically detect the issue and assign the cloud coding agent to create the PR
