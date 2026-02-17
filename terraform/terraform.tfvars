@@ -70,4 +70,45 @@ landing_zones = {
       repository = "alz-prod-api-repo"
     }
   }
+
+  e2e-test-test = {
+    workload = "e2e-test"
+    env      = "test"
+    team     = "app-dev-team"
+    location = "australiaeast"
+
+    subscription_tags = {
+      cost_center = "CC-124"
+      owner       = "app-dev-team"
+    }
+
+    # Virtual network with subnets
+    spoke_vnet = {
+      ipv4_address_spaces = {
+        default_address_space = {
+          address_space_cidr = "/24"
+          subnets = {
+            default = {
+              subnet_prefixes = ["/26"]
+            }
+            app = {
+              subnet_prefixes = ["/26"]
+            }
+          }
+        }
+      }
+    }
+
+    # Budget with notifications
+    budget = {
+      monthly_amount             = 500
+      alert_threshold_percentage = 80
+      alert_contact_emails       = ["appdev@example.com"]
+    }
+
+    # GitHub OIDC federated credentials
+    federated_credentials_github = {
+      repository = "e2e-test-repo"
+    }
+  }
 }
