@@ -23,16 +23,23 @@ Use `ask_questions` to prompt the user for each required field:
 - **Team Email** — Email address (e.g., `team@example.com`)
 - **Repository Name** — For OIDC federation (e.g., `payments-api`)
 
-### Step 2: Gather Optional Inputs (if applicable)
+### Step 2: Ask About Optional Configuration
 
-Optionally gather:
-- **Enable DevTest** — `true` or `false` (defaults to `false`)
-- **Extra Subscription Tags** — Map (e.g., `criticality=high;compliance=sox`)
-- **Spoke VNet Prefix Size** — Prefix (e.g., `/24`)
-- **Subnets Map** — Map (e.g., `default=/26;app=/26`)
-- **Budget Amount** — USD (e.g., `500`)
-- **Budget Threshold** — Percentage (e.g., `80`)
-- **Budget Emails** — Email(s) (e.g., `team@example.com`)
+Use `ask_questions` to ask if the user wants to customize optional settings:
+
+**Question:** "Do you want to customize optional settings (subnets, budget, etc.)?"
+- Options: `Use defaults` (recommended) / `Customize settings`
+
+**If "Customize settings" selected**, gather:
+- **Budget Amount** — Monthly USD (default: `500`)
+- **Budget Threshold** — Alert percentage (default: `80`)
+- **Additional Subnets** — Beyond default and app subnets (e.g., `data=/27;cache=/28`)
+- **Extra Subscription Tags** — Additional tags (e.g., `criticality=high`)
+
+**If "Use defaults" selected**, apply:
+- Budget: $500/month with 80% threshold
+- Subnets: `default` (/26) and `app` (/26)
+- No extra tags
 
 ### Step 3: Validate & Check for Conflicts
 
@@ -60,15 +67,22 @@ Use `ask_questions` to ask: **"Review the configuration above. Ready to create t
 
 ### Step 6: Create GitHub Issue
 
-Use `mcp_github_issue_write` (method: `create`) to create an issue:
+**IMPORTANT:** Load the GitHub MCP tool before using it:
 
-```
-owner: nathlan
-repo: alz-subscriptions
-title: "🏗️ Landing Zone Request: {workload_name} ({environment})"
-labels: ["alz-vending", "landing-zone"]
-body: [See Phase 0 Issue Body Template in agent instructions]
-```
+1. First, load the tool:
+   ```
+   tool_search_tool_regex(pattern: "mcp_github_issue_write")
+   ```
+
+2. Then create the issue:
+   ```
+   mcp_github_issue_write (method: create)
+   owner: nathlan
+   repo: alz-subscriptions
+   title: "🏗️ Landing Zone Request: {workload_name} ({environment})"
+   labels: ["alz-vending", "landing-zone"]
+   body: [See Phase 0 Issue Body Template in agent instructions]
+   ```
 
 ### Step 7: Handoff Complete
 

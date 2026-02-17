@@ -37,13 +37,16 @@ When running locally in VS Code (typically invoked via the `/alz-vending` prompt
 Use GitHub MCP to create a regular issue (no Copilot assignment):
 
 ```
-Use GitHub MCP: mcp_github_issue_write (method: create)
+1. First, load the GitHub issue tool:
+   tool_search_tool_regex(pattern: "mcp_github_issue_write")
 
-owner: nathlan
-repo: alz-subscriptions
-title: "🏗️ Landing Zone Request: {workload_name} ({environment})"
-labels: ["alz-vending", "landing-zone"]
-body: [See Issue Body Template below]
+2. Then create the issue:
+   mcp_github_issue_write (method: create)
+   owner: nathlan
+   repo: alz-subscriptions
+   title: "🏗️ Landing Zone Request: {workload_name} ({environment})"
+   labels: ["alz-vending", "landing-zone"]
+   body: [See Issue Body Template below]
 ```
 
 **What happens next:**
