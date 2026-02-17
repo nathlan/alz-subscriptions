@@ -73,15 +73,15 @@ This issue tracks the provisioning of a new Azure Landing Zone subscription.
 
 | Field | Value |
 |---|---|
-| **Workload** | `{workload_name}` |
-| **Environment** | {environment} (`{env}`) |
+| **Workload** | {workload_name} |
+| **Environment** | {environment} ({env}) |
 | **Location** | {location} |
 | **Team** | {team_name} |
 | **Address Space** | {address_space} |
 | **Cost Center** | {cost_center} |
 | **Team Email** | {team_email} |
 | **OIDC Repository** | {repo_name} |
-| **Landing Zone Key** | `{lz_key}` |
+| **Landing Zone Key** | {lz_key} |
 | **Requested By** | @{github_username} |
 | **Request Date** | {current_date} |
 
@@ -301,7 +301,8 @@ Before creating the GitHub issue:
 
 1. **Read the triggering issue:**
    - Extract all validated inputs from the issue body (see Issue Body Template format)
-   - Parse the markdown table to extract: workload_name, environment, env, location, team_name, address_space, cost_center, team_email, repo_name, lz_key
+   - Parse the "Validated Request Details" markdown table to extract: workload_name, environment, env, location, team_name, address_space, cost_center, team_email, repo_name, lz_key
+   - **Note:** All values in the table are plain text (no backticks or markdown formatting) for clean extraction
    - If parsing fails or required fields are missing, add a comment to the issue requesting clarification and stop
 
 2. **Read existing configuration:**
@@ -698,15 +699,15 @@ This issue tracks the provisioning of a new Azure Landing Zone subscription.
 
 | Field | Value |
 |---|---|
-| **Workload** | `payments-api` |
-| **Environment** | Production (`prod`) |
+| **Workload** | payments-api |
+| **Environment** | Production (prod) |
 | **Location** | uksouth |
 | **Team** | payments-team |
 | **Address Space** | /24 |
 | **Cost Center** | CC-4521 |
 | **Team Email** | payments-team@example.com |
 | **OIDC Repository** | payments-api |
-| **Landing Zone Key** | `payments-api-prod` |
+| **Landing Zone Key** | payments-api-prod |
 | **Requested By** | @alice |
 | **Request Date** | 2026-02-17 |
 
