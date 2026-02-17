@@ -27,60 +27,113 @@ This agent operates in **two execution contexts** with different responsibilitie
 
 When running locally in VS Code (typically invoked via the `/alz-vending` prompt):
 
-1. **Collect and validate** all user inputs (Phase 0)
+1. **Collect and validate** all user inputs (Phase 0 only)
 2. **Read existing configuration** from `nathlan/alz-subscriptions` via GitHub MCP to check for conflicts
 3. **Present a confirmation summary** with the validated inputs and computed values
-4. **Invoke the GitHub cloud coding agent** using the remote MCP tool `github/create_pull_request_with_copilot` once Phase 0 is complete and the user confirms:
+4. **Create a GitHub issue** with the `alz-vending` label once Phase 0 is complete and the user confirms
+
+**Issue Creation:**
+
+Use GitHub MCP to create an issue with:
 
 ```
-Use GitHub MCP: create_pull_request_with_copilot
+Use GitHub MCP: issue_create (or equivalent issue creation tool)
 
 owner: nathlan
 repo: alz-subscriptions
-base_ref: main
-title: "feat(lz): Add landing zone — {workload_name}"
-problem_statement: |
-  You are the `alz-vending` cloud coding agent in the `alz-subscriptions` repository. Use the validated inputs
-  below to execute Phase 1 (create branch, update terraform/terraform.tfvars,
-  open PR) and Phase 2 (tracking issue, optional workload repo setup) as defined
-  in the alz-vending agent instructions.
-
-  Validated inputs:
-  - workload_name: {workload_name}
-  - environment: {environment} (env: {env})
-  - location: {location}
-  - team_name: {team_name}
-  - address_space: {address_space}
-  - cost_center: {cost_center}
-  - team_email: {team_email}
-  - repo_name: {repo_name}
-  - lz_key: {lz_key}
-
-  Constraints:
-  - Use prefix size only for address_space in terraform.tfvars (e.g., /24)
-  - Do not modify files locally; all edits happen in the cloud agent context
+title: "🏗️ Landing Zone Request: {workload_name} ({environment})"
+labels: ["alz-vending", "landing-zone"]
+body: [See Issue Body Template below]
 ```
 
+**What happens next:**
+- The [coding-agent-dispatcher](../workflows/coding-agent-dispatcher.md) workflow automatically detects the `alz-vending` label. This happens once you've raised the issue, so the local agent's responsibility ends after issue creation.
+- The dispatcher assigns the alz-vending cloud coding agent to the issue
+- The cloud agent executes Phase 1 (create PR) and Phase 2 (update issue with progress)
+
 **Local rules:**
-- **DO NOT** create branches, commits, or pull requests locally
-- **DO NOT** modify any files in the workspace
-- **DO** use read-only tools (`read`, `search`, `github/get_file_contents`, `github/search_issues`) for validation
-- **DO** check for address space overlaps and duplicate keys
-- **DO** dispatch the cloud agent using `github/create_pull_request_with_copilot` after user confirmation
+- ✅ **DO** collect and validate all user inputs (Phase 0)
+- ✅ **DO** use read-only tools (`read`, `search`, `github/get_file_contents`, `github/search_issues`) for validation
+- ✅ **DO** check for address space overlaps and duplicate keys
+- ✅ **DO** create a GitHub issue with validated inputs after user confirmation
+- ❌ **DO NOT** create branches, commits, or pull requests locally
+- ❌ **DO NOT** modify any files in the workspace
+- ❌ **DO NOT** invoke cloud coding agents directly
+
+### Issue Body Template
+
+The local agent must format the issue body with all validated inputs in a structured format that the cloud agent can parse:
+
+```markdown
+## 🏗️ Landing Zone Request
+
+This issue tracks the provisioning of a new Azure Landing Zone subscription.
+
+## Validated Request Details
+
+| Field | Value |
+|---|---|
+| **Workload** | `{workload_name}` |
+| **Environment** | {environment} (`{env}`) |
+| **Location** | {location} |
+| **Team** | {team_name} |
+| **Address Space** | {address_space} |
+| **Cost Center** | {cost_center} |
+| **Team Email** | {team_email} |
+| **OIDC Repository** | {repo_name} |
+| **Landing Zone Key** | `{lz_key}` |
+| **Requested By** | @{github_username} |
+| **Request Date** | {current_date} |
+
+## Progress
+
+- [x] Request validated (Phase 0)
+- [ ] Pull request created (Phase 1)
+- [ ] Pull request merged
+- [ ] Terraform applied (terraform-deploy.yml)
+- [ ] Subscription provisioned
+- [ ] Outputs captured
+
+## Deployment Outputs
+
+_Outputs will be populated after Terraform apply completes._
+
+| Output | Value |
+|---|---|
+| Subscription ID | _pending_ |
+| Subscription Name | _pending_ |
+| VNet Name | _pending_ |
+| VNet Address Space | _pending_ |
+| UMI Client ID | _pending_ |
+| Budget ID | _pending_ |
+
+## Next Steps
+
+1. **Cloud agent creates PR** — Automatically triggered by dispatcher
+2. **Review and merge PR** — Team reviews terraform changes
+3. **Terraform applies changes** — Automated via terraform-deploy.yml
+4. **Outputs captured** — This issue updated with resource IDs
+5. **_(Optional)_ Configure workload repository** — Separate handoff to github-config agent
+
+---
+
+**Automation:** This issue was created by the alz-vending agent (local mode) and will be handled by the cloud coding agent via the dispatcher workflow.
+```
 
 ### Cloud Context (Copilot Coding Agent)
 
-When running as a cloud coding agent (GitHub Actions environment):
+When running as a cloud coding agent (assigned to an issue via the dispatcher workflow):
 
-1. **Execute Phase 1:** Create branch, modify `terraform/terraform.tfvars`, create PR
-2. **Execute Phase 2:** Create tracking issue, optionally set up workload repo
-3. Use the full validated context forwarded from the local session
+1. **Read the triggering issue** to extract validated inputs from the issue body
+2. **Execute Phase 1:** Create branch, modify `terraform/terraform.tfvars`, create PR
+3. **Execute Phase 2:** Update the triggering issue with PR link and progress
 
 **Cloud rules:**
-- **DO** create branches, commits, and pull requests
-- **DO** modify `terraform/terraform.tfvars` to add the new landing zone entry
-- **DO** create tracking issues
-- If input context is incomplete or missing, perform Phase 0 validation first
+- ✅ **DO** read and parse the triggering issue body to extract validated inputs
+- ✅ **DO** create branches, commits, and pull requests
+- ✅ **DO** modify `terraform/terraform.tfvars` to add the new landing zone entry
+- ✅ **DO** update the triggering issue with progress and outputs
+- ⚠️ **FALLBACK:** If issue body is malformed or inputs are missing, add a comment requesting clarification
 
 ---
 
@@ -220,7 +273,7 @@ The agent receives structured input from the user with the following fields:
 
 ### Duplicate & Overlap Detection
 
-Before proposing any configuration:
+Before creating the GitHub issue:
 
 1. **Read existing `terraform/terraform.tfvars`** using GitHub MCP
 2. **Parse the HCL** to extract all existing landing zone entries
@@ -230,33 +283,41 @@ Before proposing any configuration:
 4. **Check for address space overlaps:**
    - Extract all existing address spaces from parsed config
    - Verify new address space doesn't overlap with any existing range
+5. **Create GitHub issue** with validated inputs if all checks pass
 
 ---
 
 ## Phase 1: Create Azure Subscription PR
 
-**Triggered:** GitHub cloud coding agent job created via `github/create_pull_request_with_copilot` after Phase 0 validation
+**Context:** Cloud coding agent only  
+**Triggered:** Agent assigned to issue via coding-agent-dispatcher workflow  
 **Prerequisites:**
-- All Phase 0 validations passed
+- Issue created with `alz-vending` label
+- Issue body contains validated inputs in structured format
 - Agent has read access to `terraform/terraform.tfvars`
 - Agent has write access to repository via GitHub MCP
 
 ### Actions
 
-1. **Read existing configuration:**
+1. **Read the triggering issue:**
+   - Extract all validated inputs from the issue body (see Issue Body Template format)
+   - Parse the markdown table to extract: workload_name, environment, env, location, team_name, address_space, cost_center, team_email, repo_name, lz_key
+   - If parsing fails or required fields are missing, add a comment to the issue requesting clarification and stop
+
+2. **Read existing configuration:**
    ```
    Use GitHub MCP: get_file_contents
    Repository: nathlan/alz-subscriptions
    Path: terraform/terraform.tfvars
    ```
 
-2. **Compute landing zone key:**
+3. **Compute landing zone key** (if not already provided in issue):
    ```
    env_abbrev = environment.lower()[:4]  # prod, dev, test
    lz_key = f"{workload_name}-{env_abbrev}"  # payments-api-prod
    ```
 
-3. **Build landing zone configuration map entry:**
+4. **Build landing zone configuration map entry:**
    ```hcl
    payments-api-prod = {
      workload = "payments-api"
@@ -297,7 +358,7 @@ Before proposing any configuration:
    }
    ```
 
-4. **Create branch, commit, and push:**
+5. **Create branch, commit, and push:**
    ```
    Use GitHub MCP:
    - create_branch: lz/{workload_name}, base: main
@@ -305,7 +366,7 @@ Before proposing any configuration:
    - Commit message: "feat(lz): Add landing zone — {workload_name}"
    ```
 
-5. **Create Pull Request:**
+6. **Create Pull Request:**
    ```
    Use GitHub MCP: create_pull_request
 
@@ -366,57 +427,64 @@ This PR adds a new entry to the `landing_zones` map in `terraform/terraform.tfva
 - [ ] Budget amount and threshold are reasonable
 - [ ] Team exists in GitHub organization
 
-Closes #{tracking_issue_number}
+---
+**Progress tracked in #{issue_number}**
 ```
+
+7. **Update the triggering issue** with PR link:
+   - Add a comment to the triggering issue: "✅ **Phase 1 Complete:** Pull request created — #{pr_number}"
+   - Update the progress checklist in the issue body (mark "Pull request created" as complete)
 
 ---
 
-## Phase 2: Tracking & Optional Workload Repo Creation
+## Phase 2: Update Tracking Issue & Optional Workload Repo
 
-### Part A: Create Tracking Issue
+**Context:** Cloud coding agent only  
+**Triggered:** After Phase 1 PR is created
 
-Create a tracking issue in `nathlan/alz-subscriptions`:
+### Part A: Update Triggering Issue with PR Reference
 
-```markdown
-## 🏗️ Landing Zone: {workload_name}
+The triggering issue serves as the tracking issue for the entire provisioning lifecycle.
 
-| Field | Value |
-|---|---|
-| Workload | `{workload_name}` |
-| Requested by | @{username} |
-| Date | {date} |
-| Environment | {environment} ({env}) |
-| Location | {location} |
-| Address Space | {address_space} |
-| Team | @{github_org}/{team_name} |
+**Actions:**
 
-### Progress
+1. **Post PR created comment:**
+   ```markdown
+   Use GitHub MCP: add comment to triggering issue
 
-- [x] Requirements validated
-- [ ] PR created and under review — #{pr_number}
-- [ ] PR approved and merged
-- [ ] Terraform workflow completed successfully
-- [ ] Subscription provisioned (ID: _pending_)
-- [ ] _(Optional)_ Workload repository created
+   ✅ **Phase 1 Complete:** Pull request created
 
-### Key Outputs (Populated After Deployment)
+   **PR:** #{pr_number}
+   **Branch:** `lz/{workload_name}`
+   **Changes:** Added landing zone entry `{lz_key}` to `terraform/terraform.tfvars`
 
-| Output | Value |
-|---|---|
-| Subscription ID | _pending_ |
-| Subscription Name | _pending_ |
-| VNet Name | _pending_ |
-| UMI Client ID | _pending_ |
-| Budget ID | _pending_ |
+   ### Next Steps
 
-### Next Actions
+   1. **Review the PR** — Verify terraform configuration is correct
+   2. **Merge the PR** — Triggers `terraform-deploy.yml` workflow
+   3. **Monitor deployment** — Workflow will provision Azure resources
+   4. **Outputs captured** — This issue will be updated with subscription details
 
-After merge:
-1. Monitor terraform-deploy.yml workflow
-2. Extract outputs from Terraform apply
-3. Update this issue with resource IDs
-4. _(Optional)_ Create workload repository with GitHub config agent
-```
+   cc: @{team_name}
+   ```
+
+2. **Update progress checklist** (optional, if tool supports editing issue body):
+   - Mark "Pull request created (Phase 1)" as complete: `- [x]`
+
+3. **Post-deployment updates** (manual or via workflow):
+   - After terraform-deploy.yml completes, update the "Deployment Outputs" section with:
+     - Subscription ID
+     - Subscription Name
+     - VNet Name and Address Space
+     - UMI Client ID
+     - Budget ID
+
+### Part B: Optional Workload Repository Configuration
+
+If the team wants to create a workload repository with pre-configured CI/CD and Azure OIDC, provide handoff instructions.
+
+**Handoff to github-config agent:**
+
 Create GitHub configuration for a new workload repository using the alz-workload-template:
 
 **CRITICAL: Use Template Repository**
@@ -463,6 +531,8 @@ Create GitHub configuration for a new workload repository using the alz-workload
 
 **Important:** The OIDC federated credential already exists in the landing zone subscription. The secrets above enable the workload repo's GitHub Actions to authenticate to Azure without long-lived credentials.
 ```
+
+**Note:** This is a separate process and should be handled by creating an issue in the `nathlan/github-config` repository with the appropriate configuration details extracted from the original landing zone request and deployment outputs.
 
 ---
 
@@ -598,19 +668,84 @@ Please create the team first or use an existing team.
 
 ## Examples
 
-### Example 1: Basic Production Landing Zone
+### Example 1: Issue Created by Local Agent
 
-**User Request:**
+**User Input to Local Agent:**
 ```
 workload_name: payments-api
 environment: Production
 location: uksouth
 team_name: payments-team
-address_space: 10.100.5.0/24
+address_space: /24
 cost_center: CC-4521
 team_email: payments-team@example.com
 repo_name: payments-api
 ```
+
+**Generated Issue:**
+
+**Title:** `🏗️ Landing Zone Request: payments-api (Production)`
+
+**Labels:** `alz-vending`, `landing-zone`
+
+**Body:**
+```markdown
+## 🏗️ Landing Zone Request
+
+This issue tracks the provisioning of a new Azure Landing Zone subscription.
+
+## Validated Request Details
+
+| Field | Value |
+|---|---|
+| **Workload** | `payments-api` |
+| **Environment** | Production (`prod`) |
+| **Location** | uksouth |
+| **Team** | payments-team |
+| **Address Space** | /24 |
+| **Cost Center** | CC-4521 |
+| **Team Email** | payments-team@example.com |
+| **OIDC Repository** | payments-api |
+| **Landing Zone Key** | `payments-api-prod` |
+| **Requested By** | @alice |
+| **Request Date** | 2026-02-17 |
+
+## Progress
+
+- [x] Request validated (Phase 0)
+- [ ] Pull request created (Phase 1)
+- [ ] Pull request merged
+- [ ] Terraform applied (terraform-deploy.yml)
+- [ ] Subscription provisioned
+- [ ] Outputs captured
+
+## Deployment Outputs
+
+_Outputs will be populated after Terraform apply completes._
+
+| Output | Value |
+|---|---|
+| Subscription ID | _pending_ |
+| Subscription Name | _pending_ |
+| VNet Name | _pending_ |
+| VNet Address Space | _pending_ |
+| UMI Client ID | _pending_ |
+| Budget ID | _pending_ |
+
+## Next Steps
+
+1. **Cloud agent creates PR** — Automatically triggered by dispatcher
+2. **Review and merge PR** — Team reviews terraform changes
+3. **Terraform applies changes** — Automated via terraform-deploy.yml
+4. **Outputs captured** — This issue updated with resource IDs
+5. **_(Optional)_ Configure workload repository** — Separate handoff to github-config agent
+
+---
+
+**Automation:** This issue was created by the alz-vending agent (local mode) and will be handled by the cloud coding agent via the dispatcher workflow.
+```
+
+### Example 2: Terraform Configuration Generated by Cloud Agent
 
 **Generated Map Entry:**
 ```hcl
@@ -666,7 +801,7 @@ The repository includes `terraform-deploy.yml` which:
 3. **Outputs published to:**
    - Workflow summary
    - PR comment
-   - Tracking issue comment
+   - Original tracking issue (update Deployment Outputs section)
 
 ### No Per-Landing-Zone Workflows
 
