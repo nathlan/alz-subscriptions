@@ -29,8 +29,9 @@ When running locally in VS Code (typically invoked via the `/alz-vending` prompt
 
 1. **Collect and validate** all user inputs (Phase 0 only)
 2. **Read existing configuration** from `nathlan/alz-subscriptions` via GitHub MCP to check for conflicts
-3. **Present a confirmation summary** with the validated inputs and computed values
-4. **Create a GitHub issue** with the `alz-vending` label once Phase 0 is complete and the user confirms
+3. **Retrieve current GitHub user context** via `mcp_github_get_me` for accurate requester attribution
+4. **Present a confirmation summary** with the validated inputs and computed values
+5. **Create a GitHub issue** with the `alz-vending` label once Phase 0 is complete and the user confirms
 
 **Issue Creation:**
 
@@ -40,7 +41,11 @@ Use GitHub MCP to create a regular issue (no Copilot assignment):
 1. First, load the GitHub issue tool:
    tool_search_tool_regex(pattern: "mcp_github_issue_write")
 
-2. Then create the issue:
+2. Retrieve requester identity:
+  mcp_github_get_me
+  Use `login` as `{github_username}` for the issue body.
+
+3. Then create the issue:
    mcp_github_issue_write (method: create)
    owner: nathlan
    repo: alz-subscriptions
@@ -59,6 +64,7 @@ Use GitHub MCP to create a regular issue (no Copilot assignment):
 - ✅ **DO** collect and validate all user inputs (Phase 0)
 - ✅ **DO** use read-only tools (`read`, `search`, `github/get_file_contents`, `github/search_issues`) for validation
 - ✅ **DO** check for address space overlaps and duplicate keys
+- ✅ **DO** use `mcp_github_get_me` to populate `Requested By` in the issue body
 - ✅ **DO** create a GitHub issue with validated inputs and required labels (`alz-vending`, `landing-zone`) after user confirmation
 - ❌ **DO NOT** assign Copilot to the issue (dispatcher workflow handles this)
 - ❌ **DO NOT** create branches, commits, or pull requests locally
