@@ -136,12 +136,13 @@ _Outputs will be populated after Terraform apply completes._
 When running as a cloud coding agent (assigned to an issue via the dispatcher workflow):
 
 1. **Read the triggering issue** to extract validated inputs from the issue body
-2. **Execute Phase 1:** Create branch, modify `terraform/terraform.tfvars`, create PR
+2. **Execute Phase 1:** Determine target PR context, modify `terraform/terraform.tfvars`, and update existing PR when available (create new PR only if none exists)
 3. **Execute Phase 2:** Update the triggering issue with PR link and progress
 
 **Cloud rules:**
 - ✅ **DO** read and parse the triggering issue body to extract validated inputs
-- ✅ **DO** create branches, commits, and pull requests
+- ✅ **DO** prefer updating an existing PR/branch when the run is already tied to one
+- ✅ **DO** create branches and pull requests only when no suitable existing PR context exists
 - ✅ **DO** modify `terraform/terraform.tfvars` to add the new landing zone entry
 - ✅ **DO** update the triggering issue with progress and outputs
 - ⚠️ **FALLBACK:** If issue body is malformed or inputs are missing, add a comment requesting clarification
@@ -370,15 +371,22 @@ Before creating the GitHub issue:
    }
    ```
 
-5. **Create branch, commit, and push:**
+5. **Determine target branch/PR context (reuse-first):**
+  - If the coding run is already attached to an existing PR (for example `agents/pull/<number>` context), use that PR's branch as the target.
+  - Otherwise, search for an existing open PR for the same triggering issue and/or landing zone key. If found, use that PR branch.
+  - Only if no suitable PR exists, create a new branch: `lz/{workload_name}` from `main`.
+
+6. **Commit and push to the target branch:**
    ```
    Use GitHub MCP:
-   - create_branch: lz/{workload_name}, base: main
    - create_or_update_file: terraform/terraform.tfvars
    - Commit message: "feat(lz): Add landing zone — {workload_name}"
    ```
 
-6. **Create Pull Request:**
+7. **Create or reuse Pull Request:**
+  - If reusing an existing PR context, do **not** create another PR.
+  - If no PR exists yet for the target branch, create one with the template below.
+
    ```
    Use GitHub MCP: create_pull_request
 
@@ -443,8 +451,8 @@ This PR adds a new entry to the `landing_zones` map in `terraform/terraform.tfva
 **Progress tracked in #{issue_number}**
 ```
 
-7. **Update the triggering issue** with PR link:
-   - Add a comment to the triggering issue: "✅ **Phase 1 Complete:** Pull request created — #{pr_number}"
+8. **Update the triggering issue** with PR link:
+  - Add a comment to the triggering issue: "✅ **Phase 1 Complete:** Pull request ready — #{pr_number}"
    - Update the progress checklist in the issue body (mark "Pull request created" as complete)
 
 ---
