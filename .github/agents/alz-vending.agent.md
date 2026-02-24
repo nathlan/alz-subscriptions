@@ -143,8 +143,10 @@ When running as a cloud coding agent (assigned to an issue via the dispatcher wo
 - ✅ **DO** read and parse the triggering issue body to extract validated inputs
 - ✅ **DO** prefer updating an existing PR/branch when the run is already tied to one
 - ✅ **DO** create branches and pull requests only when no suitable existing PR context exists
+- ✅ **DO** search for an existing open PR tied to the same triggering issue and/or landing zone key before creating any new PR
 - ✅ **DO** modify `terraform/terraform.tfvars` to add the new landing zone entry
 - ✅ **DO** update the triggering issue with progress and outputs
+- ❌ **DO NOT** create a second PR for the same issue or landing zone key when an open PR already exists
 - ⚠️ **FALLBACK:** If issue body is malformed or inputs are missing, add a comment requesting clarification
 
 ---
@@ -375,6 +377,7 @@ Before creating the GitHub issue:
   - If the coding run is already attached to an existing PR (for example `agents/pull/<number>` context), use that PR's branch as the target.
   - Otherwise, search for an existing open PR for the same triggering issue and/or landing zone key. If found, use that PR branch.
   - Only if no suitable PR exists, create a new branch: `lz/{workload_name}` from `main`.
+  - Persist `target_pr_number` when an existing PR is found/reused.
 
 6. **Commit and push to the target branch:**
    ```
@@ -385,6 +388,8 @@ Before creating the GitHub issue:
 
 7. **Create or reuse Pull Request:**
   - If reusing an existing PR context, do **not** create another PR.
+  - Before any `create_pull_request` call, perform a final duplicate guard check for open PRs matching the triggering issue and/or `{lz_key}`.
+  - If any matching open PR exists, set `target_pr_number` to that PR and skip PR creation.
   - If no PR exists yet for the target branch, create one with the template below.
 
    ```
