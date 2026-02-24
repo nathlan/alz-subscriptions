@@ -112,6 +112,47 @@ landing_zones = {
     }
   }
 
+  vending-demo-test = {
+    workload = "vending-demo"
+    env      = "test"
+    team     = "app-dev-team"
+    location = "australiaeast"
+
+    subscription_tags = {
+      cost_center = "CC-1234"
+      owner       = "app-dev-team"
+    }
+
+    # Virtual network with subnets
+    spoke_vnet = {
+      ipv4_address_spaces = {
+        default_address_space = {
+          address_space_cidr = "/23"
+          subnets = {
+            default = {
+              subnet_prefixes = ["/26"]
+            }
+            app = {
+              subnet_prefixes = ["/26"]
+            }
+          }
+        }
+      }
+    }
+
+    # Budget with notifications
+    budget = {
+      monthly_amount             = 500
+      alert_threshold_percentage = 80
+      alert_contact_emails       = ["appdev@example.com"]
+    }
+
+    # GitHub OIDC federated credentials
+    federated_credentials_github = {
+      repository = "alz-vending-repo"
+    }
+  }
+
   one-made-earlier-test = {
     workload = "one-made-earlier"
     env      = "test"
