@@ -234,4 +234,45 @@ landing_zones = {
       repository = "alz-vartika-test"
     }
   }
+
+  internal-demo-test = {
+    workload = "internal-demo"
+    env      = "test"
+    team     = "sgsdgs"
+    location = "uksouth"
+
+    subscription_tags = {
+      cost_center = "CC-1234"
+      owner       = "sgsdgs"
+    }
+
+    # Virtual network with subnets
+    spoke_vnet = {
+      ipv4_address_spaces = {
+        default_address_space = {
+          address_space_cidr = "/24"
+          subnets = {
+            default = {
+              subnet_prefixes = ["/26"]
+            }
+            app = {
+              subnet_prefixes = ["/26"]
+            }
+          }
+        }
+      }
+    }
+
+    # Budget with notifications
+    budget = {
+      monthly_amount             = 500
+      alert_threshold_percentage = 80
+      alert_contact_emails       = ["ream@qmoerm.com"]
+    }
+
+    # GitHub OIDC federated credentials
+    federated_credentials_github = {
+      repository = "rtewt"
+    }
+  }
 }
