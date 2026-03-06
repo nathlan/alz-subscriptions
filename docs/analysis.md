@@ -36,7 +36,6 @@ alz-subscriptions/
 │   ├── variables.tf                   # Input variable definitions (167 lines)
 │   ├── terraform.tfvars               # Configuration map with example landing zones (238 lines)
 │   ├── outputs.tf                     # Module outputs (59 lines)
-│   ├── backend.tf                     # Azure Storage backend configuration
 │   ├── versions.tf                    # Provider versions
 │   └── checkov.yml                    # Security scanning configuration
 ├── docs/
@@ -55,11 +54,7 @@ alz-subscriptions/
 |-----------|--------|
 | **Terraform Version** | ~> 1.10 |
 | **Providers** | azapi (~> 2.5), modtm (~> 0.3), random (>= 3.3.2), time (>= 0.9, < 1.0) |
-| **Backend Type** | Azure Storage (azurerm) |
-| **Backend Location** | Resource Group: `rg-terraform-state`, Storage Account: `stterraformstate` |
-| **State Container** | `alz-subscriptions` |
-| **State Key** | `landing-zones/main.tfstate` |
-| **Backend Auth** | OIDC enabled (`use_oidc = true`) |
+| **State Management** | Handled by the reusable pipeline (not configured in this repository) |
 | **Module Source** | `github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.0.6` |
 | **Module Purpose** | Provisions Azure Landing Zone subscriptions with VNet peering, UMI, OIDC credentials, and budgets |
 

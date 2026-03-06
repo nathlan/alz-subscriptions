@@ -12,7 +12,7 @@
 
 ## Quick Start
 
-1. **[docs/SETUP.md](docs/SETUP.md)** — Configure Azure backend, OIDC identities, GitHub secrets, run first deployment
+1. **[docs/SETUP.md](docs/SETUP.md)** — Configure OIDC identities, GitHub secrets, run first deployment
 2. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Learn the map-based pattern, module chain, CI/CD flow
 3. **[docs/prerequisites.md](docs/prerequisites.md)** — Complete requirements checklist and migration guidance
 
@@ -21,7 +21,7 @@
 - [ ] Azure subscription with **EA or MCA** billing enrollment
 - [ ] GitHub organization: `insight-agentic-platform-project`
 - [ ] Two OIDC identities configured (plan + apply)
-- [ ] Azure Storage Backend for Terraform state
+- [ ] Terraform state backend (provisioned via reusable pipeline)
 - [ ] (Optional) Hub Virtual Network for spoke peering
 
 ## Agent Workflows: Copilot-Powered Provisioning
@@ -58,7 +58,7 @@ Three interconnected agent components orchestrate self-service landing zone prov
 
 **Map-based configuration:** All zones defined in `terraform.tfvars` as an HCL map. Single module call with `.for_each` iterates over zones, creating each subscription independently.
 
-**Shared state:** One `main.tfstate` in Azure Storage with OIDC authentication — no static secrets, full audit trail.
+**Shared state:** All landing zones share a single Terraform state file. State management is handled by the reusable pipeline — no backend configuration in this repository.
 
 **Dual-identity CI/CD:** Plan operations use Reader identity, apply operations use Contributor identity — separation of concerns with governance.
 
@@ -78,7 +78,7 @@ Update `terraform/terraform.tfvars` before deployment:
 
 - **Module chain:** This repo → private wrapper module → public Azure Verified Modules (AVM)
 - **OIDC only:** Federated credential from GitHub OIDC; Azure login without secrets
-- **State management:** Centralized backend; atomic zone deployments
+- **State management:** Handled by reusable pipeline; atomic zone deployments
 - **Outputs:** Subscription IDs, VNet IDs, managed identity details, calculated CIDRs
 
 For full architecture details, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -91,7 +91,6 @@ alz-subscriptions/
 │   ├── main.tf               # Landing zone vending module call
 │   ├── variables.tf          # Input variable definitions
 │   ├── terraform.tfvars      # Landing zone map (customize)
-│   ├── backend.tf            # Azure Storage backend
 │   ├── outputs.tf            # Zone outputs
 │   └── versions.tf           # Provider versions
 ├── .github/

@@ -121,37 +121,14 @@ This repository participates in a three-layer module hierarchy:
 
 ---
 
-## 4. State Management: Shared State for All Landing Zones
+## 4. State Management
 
-All landing zones share **one `main.tfstate` file** stored in Azure Storage Backend:
+Terraform state management is handled by the **reusable pipeline** called from `.github/workflows/terraform-deploy.yml`. This repository does not contain a `backend.tf` — the reusable workflow configures the backend at runtime.
 
-```
-Azure Storage Account
-└─ Container: alz-subscriptions
-   └─ Blob: landing-zones/main.tfstate
-      ├─ State for zone: api-prod
-      ├─ State for zone: api-dev
-      └─ State for zone: web-test
-```
-
-**Benefits of shared state:**
+All landing zones share a single state file, providing:
 - **Atomic operations:** All zones updated together; no partial deployments
 - **Single source of truth:** One state file, one history, one lock mechanism
-- **OIDC only:** No static credentials; federated credentials from GitHub OIDC
-- **Audit trail:** Azure Storage access logs track all reads/writes
-
-**Backend configuration (terraform/backend.tf):**
-```hcl
-terraform {
-  backend "azurerm" {
-    resource_group_name      = "rg-terraform-state"
-    storage_account_name     = "stterraformstate"
-    container_name           = "alz-subscriptions"
-    key                      = "landing-zones/main.tfstate"
-    use_oidc                 = true
-  }
-}
-```
+- **No static credentials:** Authentication is handled via OIDC in the pipeline
 
 ---
 

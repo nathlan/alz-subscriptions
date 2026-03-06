@@ -14,13 +14,7 @@
 
 ### Terraform State Infrastructure
 
-| Resource | Configuration | Purpose | How to Create |
-|----------|---------------|---------|---------------|
-| **Resource Group** | Name: `rg-terraform-state` | Contains state storage account | `az group create --name rg-terraform-state --location uksouth` |
-| **Storage Account** | Name: `stterraformstate`, SKU: Standard_LRS | Terraform state backend | `az storage account create --name stterraformstate --resource-group rg-terraform-state --location uksouth --kind StorageV2 --sku Standard_LRS` |
-| **Storage Container** | Name: `alz-subscriptions` | State file location | `az storage container create --name alz-subscriptions --account-name stterraformstate` |
-| **State Key** | Path: `landing-zones/main.tfstate` | State file reference (automatically used by terraform backend block) | Auto-created on first `terraform init` |
-| **Backend Auth** | OIDC enabled (`use_oidc = true` in `terraform/backend.tf`) | No static secrets in state backend | Configured via OIDC identities (see Identity section) |
+Terraform state management is handled by the **reusable pipeline** — this repository does not include a `backend.tf`. The reusable workflow in `<YOUR_GITHUB_ORG>/.github-workflows` configures the backend at runtime. Consult the reusable pipeline documentation for state storage requirements.
 
 ### Entra ID / Identity Management
 
@@ -33,7 +27,7 @@ Set up two separate Azure identities (app registrations or managed identities) f
 | **Name** | e.g., `ado-terraform-plan-<org>` | Distinct from apply identity |
 | **Application ID / Client ID** | (from app registration) | Store in GitHub secret: `AZURE_CLIENT_ID_PLAN` |
 | **Role Assignment** | `Reader` on management group | Scoped to management group containing target subscriptions |
-| **State Access** | Read permissions on `stterraformstate` storage | Add Storage Blob Data Reader role on storage account |
+| **State Access** | Read permissions on state backend storage | Consult reusable pipeline docs for exact scope |
 | **Federated Credential (GitHub OIDC)** | See [OIDC Setup](#oidc-federation-setup) | Trusts GitHub Actions from this repo |
 
 #### Apply Identity (Provisioning)
@@ -43,7 +37,7 @@ Set up two separate Azure identities (app registrations or managed identities) f
 | **Name** | e.g., `ado-terraform-apply-<org>` | Distinct from plan identity |
 | **Application ID / Client ID** | (from app registration) | Store in GitHub secret: `AZURE_CLIENT_ID_APPLY` |
 | **Role Assignment** | `Contributor` or equivalent on management group + `Billing Account Contributor` on billing scope | Required to create subscriptions and manage resources |
-| **State Access** | Read/Write permissions on `stterraformstate` storage | Add Storage Blob Data Contributor role on storage account |
+| **State Access** | Read/Write permissions on state backend storage | Consult reusable pipeline docs for exact scope |
 | **Federated Credential (GitHub OIDC)** | See [OIDC Setup](#oidc-federation-setup) | Trusts GitHub Actions from this repo |
 
 #### Tenant Information
@@ -156,11 +150,9 @@ Complete these steps in order before first deployment:
 ### 1. Azure Setup
 - [ ] **Billing Scope**: Obtain EA/MCA billing scope ID; update `terraform.tfvars` line 12
 - [ ] **Management Group**: Confirm management group ID; update `terraform.tfvars` line 11 if not `Corp`
-- [ ] **Resource Group**: Create `rg-terraform-state`
-- [ ] **Storage Account**: Create `stterraformstate` in resource group
-- [ ] **Storage Container**: Create `alz-subscriptions` container in storage account
-- [ ] **Plan Identity**: Create app registration `ado-terraform-plan-<org>`; grant Reader on management group + Storage Blob Data Reader on storage
-- [ ] **Apply Identity**: Create app registration `ado-terraform-apply-<org>`; grant Contributor on management group + Billing Account Contributor + Storage Blob Data Contributor
+- [ ] **State Backend**: Ensure the reusable pipeline's state backend infrastructure is provisioned (see reusable pipeline docs)
+- [ ] **Plan Identity**: Create app registration `ado-terraform-plan-<org>`; grant Reader on management group + state backend read access
+- [ ] **Apply Identity**: Create app registration `ado-terraform-apply-<org>`; grant Contributor on management group + Billing Account Contributor + state backend write access
 - [ ] **OIDC Federated Credentials**: Add credentials to both app registrations with GitHub OIDC trust
 - [ ] **Hub VNet** (optional): If peering required, create/identify hub VNet; update `terraform.tfvars` line 13
 - [ ] **Network Validation**: Confirm `10.100.0.0/16` does not overlap existing address space
@@ -183,7 +175,7 @@ Complete these steps in order before first deployment:
 - [ ] Review plan output in PR comments
 - [ ] Merge to `main` (if using environment gate, approve deployment)
 - [ ] Verify apply succeeds and subscription is created
-- [ ] Check Terraform state in storage account
+- [ ] Check Terraform state is persisted correctly
 
 ---
 

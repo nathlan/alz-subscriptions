@@ -24,42 +24,11 @@ This repository was originally configured for the `nathlan` organization. If you
 
 ## Step 1: Set Up Azure Infrastructure
 
-### Create Resource Group and Storage Account for Terraform State
+### Terraform State Backend
 
-Before deploying any landing zones, establish a centralized backend for Terraform state. This must be done in your Azure deployment/management subscription.
+Terraform state management is handled by the **reusable pipeline** — this repository does not include a `backend.tf`. The reusable workflow in `<YOUR_GITHUB_ORG>/.github-workflows` configures the backend at runtime.
 
-```bash
-# Set variables for your environment
-LOCATION="uksouth"
-RESOURCE_GROUP="rg-terraform-state"
-STORAGE_ACCOUNT="stterraformstate"
-CONTAINER_NAME="alz-subscriptions"
-STATE_KEY="landing-zones/main.tfstate"
-
-# Create resource group
-az group create \
-  --name $RESOURCE_GROUP \
-  --location $LOCATION
-
-# Create storage account (Standard_LRS, StorageV2)
-az storage account create \
-  --name $STORAGE_ACCOUNT \
-  --resource-group $RESOURCE_GROUP \
-  --location $LOCATION \
-  --kind StorageV2 \
-  --sku Standard_LRS
-
-# Create blob container for state files
-az storage container create \
-  --name $CONTAINER_NAME \
-  --account-name $STORAGE_ACCOUNT \
-  --auth-mode login  # Uses your current Azure login credentials
-```
-
-**Verification:**
-- Resource group should appear in Azure Portal under the specified location
-- Storage account name must be globally unique; if already taken, modify and retry
-- Container should be visible in Storage Account → Containers
+Consult the reusable pipeline documentation for state storage provisioning steps. Ensure the state backend infrastructure is in place before running the first deployment.
 
 ### Determine Required Azure Resource IDs
 
@@ -129,11 +98,11 @@ az role assignment create \
   --role "Reader" \
   --scope "/providers/Microsoft.Management/managementGroups/$MGMT_GROUP_ID"
 
-# Assign Storage Blob Data Reader on backend storage account
-az role assignment create \
-  --assignee $PLAN_CLIENT_ID \
-  --role "Storage Blob Data Reader" \
-  --scope "/subscriptions/$BACKEND_SUBSCRIPTION_ID/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/stterraformstate"
+# Grant read access to the state backend (consult reusable pipeline docs for scope)
+# az role assignment create \
+#   --assignee $PLAN_CLIENT_ID \
+#   --role "Storage Blob Data Reader" \
+#   --scope "<STATE_BACKEND_RESOURCE_ID>"
 
 echo "Plan Identity Client ID: $PLAN_CLIENT_ID"
 ```
@@ -166,11 +135,11 @@ az role assignment create \
   --role "Billing Account Contributor" \
   --scope "$BILLING_SCOPE"
 
-# Assign Storage Blob Data Contributor on backend storage account
-az role assignment create \
-  --assignee $APPLY_CLIENT_ID \
-  --role "Storage Blob Data Contributor" \
-  --scope "/subscriptions/$BACKEND_SUBSCRIPTION_ID/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/stterraformstate"
+# Grant read/write access to the state backend (consult reusable pipeline docs for scope)
+# az role assignment create \
+#   --assignee $APPLY_CLIENT_ID \
+#   --role "Storage Blob Data Contributor" \
+#   --scope "<STATE_BACKEND_RESOURCE_ID>"
 
 echo "Apply Identity Client ID: $APPLY_CLIENT_ID"
 ```
@@ -317,19 +286,15 @@ terraform init -backend=false
 
 Deploy the first set of landing zones to verify the entire pipeline works end-to-end.
 
-### Initialize Terraform Backend
+### Initialize Terraform
 
 ```bash
 cd terraform
 
-# Initialize with Azure backend
-terraform init \
-  -backend-config="resource_group_name=rg-terraform-state" \
-  -backend-config="storage_account_name=stterraformstate" \
-  -backend-config="container_name=alz-subscriptions" \
-  -backend-config="key=landing-zones/main.tfstate"
+# Initialize Terraform (backend is configured by the reusable pipeline at runtime)
+terraform init
 
-# Should complete with "Terraform has been successfully configured"
+# Should complete with "Terraform has been successfully initialized"
 ```
 
 ### Validate and Plan Locally
@@ -496,8 +461,8 @@ keys defined under `landing_zones` in tfvars).
 ### Backend initialization/state access failure
 
 - **Cause:** Backend resources do not exist or identity lacks access.
-- **Fix:** Confirm `rg-terraform-state`, `stterraformstate`,
-  `alz-subscriptions` exist and identities can read/write state as needed.
+- **Fix:** Confirm the state backend infrastructure is provisioned per the
+  reusable pipeline documentation and identities have appropriate access.
 
 ### Terraform validation fails for landing zones
 
