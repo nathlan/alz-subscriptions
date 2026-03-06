@@ -3,12 +3,10 @@ name: Documentation Conductor
 description: Master orchestrator for repository documentation generation. Runs a non-interactive, end-to-end workflow that validates existing artifacts for freshness, regenerates stale outputs, and auto-handoffs to specialized agents.
 argument-hint: Describe what documentation you need generated for this repository
 user-invokable: true
-agents:
-  [
-    "SE: Tech Writer",
-  ]
-tools:
-  [vscode/askQuestions, read/problems, read/readFile, agent/runSubagent, edit/createFile, edit/editFiles, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages, web/fetch, web/githubRepo, hashicorp-terraform-mcp-server/get_latest_module_version, hashicorp-terraform-mcp-server/get_latest_provider_version, hashicorp-terraform-mcp-server/get_module_details, hashicorp-terraform-mcp-server/get_policy_details, hashicorp-terraform-mcp-server/get_provider_details, hashicorp-terraform-mcp-server/search_modules, hashicorp-terraform-mcp-server/search_policies, hashicorp-terraform-mcp-server/search_providers, github/actions_get, github/actions_list, github/actions_run_trigger, github/add_comment_to_pending_review, github/add_issue_comment, github/add_reply_to_pull_request_comment, github/assign_copilot_to_issue, github/create_branch, github/create_gist, github/create_or_update_file, github/create_pull_request, github/create_pull_request_with_copilot, github/create_repository, github/delete_file, github/dismiss_notification, github/fork_repository, github/get_code_scanning_alert, github/get_commit, github/get_copilot_job_status, github/get_copilot_space, github/get_dependabot_alert, github/get_discussion, github/get_discussion_comments, github/get_file_contents, github/get_gist, github/get_global_security_advisory, github/get_job_logs, github/get_label, github/get_latest_release, github/get_me, github/get_notification_details, github/get_release_by_tag, github/get_repository_tree, github/get_secret_scanning_alert, github/get_tag, github/get_team_members, github/get_teams, github/github_support_docs_search, github/issue_read, github/issue_write, github/label_write, github/list_branches, github/list_code_scanning_alerts, github/list_commits, github/list_copilot_spaces, github/list_dependabot_alerts, github/list_discussion_categories, github/list_discussions, github/list_gists, github/list_global_security_advisories, github/list_issue_types, github/list_issues, github/list_label, github/list_notifications, github/list_org_repository_security_advisories, github/list_pull_requests, github/list_releases, github/list_repository_security_advisories, github/list_secret_scanning_alerts, github/list_starred_repositories, github/list_tags, github/manage_notification_subscription, github/manage_repository_notification_subscription, github/mark_all_notifications_read, github/merge_pull_request, github/projects_get, github/projects_list, github/projects_write, github/pull_request_read, github/pull_request_review_write, github/push_files, github/request_copilot_review, github/search_code, github/search_issues, github/search_orgs, github/search_pull_requests, github/search_repositories, github/search_users, github/star_repository, github/sub_issue_write, github/unstar_repository, github/update_gist, github/update_pull_request, github/update_pull_request_branch, github/web_search, todo]
+target: vscode
+model: Claude Opus 4.6 (copilot)
+agents: [ "SE: Tech Writer"]
+tools: [vscode/askQuestions, read/problems, read/readFile, agent, edit/createFile, edit/editFiles, search, web, todo, github/*]
 handoffs:
   - label: "Step 1: Codebase Analysis"
     agent: Documentation Conductor
@@ -51,6 +49,49 @@ This conductor agent produces documentation that answers one critical question:
 
 It focuses on **portability** — extracting every implicit dependency, secret, external service, and configuration assumption so that nothing is left to guesswork.
 
+---
+
+## Pre-flight: Target Organisation (Required Before Writing)
+
+This repository is designed to be migrated into a client's GitHub organisation. The source codebase contains org-specific strings (e.g. the source GitHub organisation name and repository references) that must be clearly flagged in every generated document so the adopting team knows exactly what to replace.
+
+**This agent is invoked by the `/generate-documentation` prompt**, which is responsible for collecting `TARGET_ORG` and `TARGET_REPO` from the user before invoking this agent. Those values are passed in as part of the initial message context. **Do not ask the user for these values yourself** — read them from the message you were invoked with.
+
+When you are invoked, look for `TARGET_ORG` and `TARGET_REPO` at the top of the message. If they are present, use them throughout all generated documentation. If they are absent (e.g. the agent was invoked directly without the prompt), fall back to:
+- `TARGET_ORG = "<YOUR_GITHUB_ORG>"`
+- `TARGET_REPO = "<YOUR_REPO_NAME>"`
+
+Resolve:
+- `TARGET_ORG` — the target GitHub organisation slug (e.g. `my-company`)
+- `TARGET_REPO` — the target repository name (e.g. `alz-subscriptions`)
+- `SOURCE_ORG` — the source organisation found in the codebase (scan for the org name in `terraform/main.tf`, `.github/workflows/*.yml`, and agent files — in this repo it is `nathlan`)
+
+### Org Reference Convention
+
+Every generated document must treat org-specific strings as migration-sensitive. Use this convention consistently:
+
+| What appears in source | How to write it in docs |
+|------------------------|-------------------------|
+| Source org name (e.g. `nathlan`) | Write `<YOUR_GITHUB_ORG>` (or the confirmed `TARGET_ORG` value in a callout) |
+| Source repo references (e.g. `nathlan/alz-subscriptions`) | Write `<YOUR_GITHUB_ORG>/<YOUR_REPO_NAME>` |
+| Reusable workflow repo (e.g. `nathlan/.github-workflows`) | Write `<YOUR_GITHUB_ORG>/.github-workflows` with a note that this repo must exist in the target org |
+| Private module source (e.g. `github.com/nathlan/terraform-azurerm-landing-zone-vending`) | Flag as a private module that must be forked or mirrored into the target org |
+
+Whenever an org-specific value appears, add an inline callout:
+
+```markdown
+> ⚠️ **Migration required:** Replace `nathlan` with your GitHub organisation name.
+```
+
+or, if `TARGET_ORG` is known, add a migration note box at the top of the document:
+
+```markdown
+> **Migrating to `TARGET_ORG`?** All references to `nathlan` in this repository must be updated.
+> See the Migration Checklist section in `docs/prerequisites.md` for a complete list.
+```
+
+---
+
 ## DO / DON'T
 
 | ✅ DO | ❌ DON'T |
@@ -63,6 +104,10 @@ It focuses on **portability** — extracting every implicit dependency, secret, 
 | Track progress with the todo tool | Lose track of which steps are complete |
 | Note when values are placeholders vs real config | Present placeholder values as if they're production |
 | Validate existing artifacts against git commit provenance before reuse | Trust existing docs without freshness checks |
+| Ask for `TARGET_ORG` before generating any doc | Silently use the source org name as if it is the target |
+| Flag every org-specific string with a migration callout | Embed source org names directly into generated docs without warning |
+| Identify private modules and reusable workflows that must be forked into the target org | Treat external GitHub module sources as public registry entries |
+| Add a Migration Checklist section to prerequisites.md | Omit org-migration steps from the checklist |
 
 ## The 5-Step Workflow
 
@@ -138,6 +183,12 @@ Before trusting any existing output artifact, validate whether it is still curre
    - MCP server configurations
    - Any URLs, API endpoints, or service references
 
+5. **Identify org-specific strings that require migration:**
+   - The source GitHub organisation name embedded in module sources, workflow `uses:` references, and agent files
+   - Private GitHub-hosted modules (sourced via `github.com/<org>/...`) — note these must be forked or mirrored, distinguish from public Terraform Registry modules
+   - Reusable workflow repositories (e.g. `<source-org>/.github-workflows`) — note these must exist in the target org
+   - Any GitHub org name that appears in `terraform/terraform.tfvars` (e.g. `github_organization`) — flag as requiring update
+
 **Output:** `docs/analysis.md` containing:
 
 ```markdown
@@ -171,9 +222,14 @@ Before trusting any existing output artifact, validate whether it is still curre
 | [from each .yml] | | | |
 
 ## External Dependencies
-| Dependency | Source | Purpose |
-|------------|--------|---------|
-| [module/workflow/service] | [URL] | [what it does] |
+| Dependency | Source | Purpose | Migration Action |
+|------------|--------|---------|------------------|
+| [module/workflow/service] | [URL] | [what it does] | Fork / Mirror / Replace / None |
+
+## Org-Specific Strings Requiring Migration
+| Location | Current Value | Replace With |
+|----------|---------------|-------------|
+| [file path] | [source org string] | `TARGET_ORG` or `<YOUR_GITHUB_ORG>` |
 ```
 
 ### After Step 1
@@ -212,6 +268,8 @@ Artifact: docs/analysis.md
    - Required repository permissions (`id-token: write` for OIDC)
    - Branch protection rules implied by workflow triggers
    - Reusable workflow access (org-level workflow sharing)
+   - Whether the reusable workflow repository (e.g. `<source-org>/.github-workflows`) needs to be created or already exists in the target org
+   - Whether private Terraform modules (sourced via `github.com/<source-org>/...`) need to be forked into the target org
 
 4. **Extract OIDC/Identity requirements:**
    - Azure AD App Registrations or Managed Identities needed
@@ -289,6 +347,15 @@ Artifact: docs/analysis.md
 - [ ] GitHub environment "production" created with protection rules
 - [ ] Access to reusable workflows granted
 - [ ] Base address space allocated (no overlap with existing networks)
+
+## Migration Checklist
+- [ ] Replace source org name (`nathlan`) with `<YOUR_GITHUB_ORG>` in `terraform/terraform.tfvars` (`github_organization`)
+- [ ] Fork or mirror private Terraform module(s) into target org (see External Dependencies table)
+- [ ] Create or confirm `.github-workflows` repository exists in target org
+- [ ] Update `terraform/main.tf` module source to reference target org
+- [ ] Update `.github/workflows/terraform-deploy.yml` `uses:` reference to point to target org's reusable workflow
+- [ ] Update any agent files that reference the source org
+- [ ] Update `github_organization` variable in `terraform.tfvars` to target org
 ```
 
 ### After Step 2
@@ -318,6 +385,8 @@ Artifact: docs/prerequisites.md
 - Call out which values need to be replaced for the client's environment
 - Include troubleshooting for common setup failures
 - Cover: Azure setup → GitHub setup → First deployment → Verification
+- **Migration steps must come first:** Include a prominent "Before You Begin — Migrate Org References" section as the first step, listing every file and value that references the source org and must be updated before any deployment is attempted
+- Use `<YOUR_GITHUB_ORG>` as the token for the target org throughout; if `TARGET_ORG` is known, display both the token and the actual value
 
 **Output:** `docs/SETUP.md`
 
@@ -346,14 +415,17 @@ Artifact: docs/SETUP.md
 - Cover:
   - Map-based architecture pattern (single tfvars, one module call)
   - Landing zone lifecycle (request → PR → merge → deploy → outputs)
-  - Terraform module design and what it provisions
+  - Terraform module design and what it provisions — including the full module chain: private wrapper module → public Azure Verified Modules (AVM)
   - State management approach (single state file)
   - OIDC authentication model (dual identity, plan vs apply)
   - Address space auto-calculation
   - CI/CD pipeline flow (reusable workflow pattern)
-  - Agent-assisted workflow (optional, for teams using Copilot agents)
+  - Agent-assisted workflow — document both the **local IDE mode** (VS Code, `/alz-vending` prompt, interactive Phase 0) and the **cloud coding agent mode** (Copilot coding agent assigned via dispatcher workflow, Phase 1 PR creation + Phase 2 issue update)
+  - Developer experience — document the devcontainer and what it provides
 - Include a simple text-based architecture diagram
-- Keep it concise — max 300 lines
+- When describing module sources, always trace the full chain: this repo → private wrapper module → public AVM modules
+- Flag any org-specific references (module source URLs, workflow `uses:` paths) with migration callouts
+- Keep it concise — max 400 lines
 
 **Output:** `docs/ARCHITECTURE.md`
 
@@ -378,12 +450,15 @@ Artifact: docs/ARCHITECTURE.md
 - Current README.md (if exists)
 
 **Requirements:**
-- Concise (under 100 lines)
+- Concise (under 120 lines)
 - Include: project summary, quick-start pointer, prerequisites summary, links to full docs
 - Link to `docs/SETUP.md` for detailed setup
 - Link to `docs/ARCHITECTURE.md` for how it works
 - Include a "What you'll need" checklist (abbreviated from prerequisites)
+- Include a brief "Agent Workflows" section that explains the ALZ vending agent (local + cloud modes) as a key feature of the repo
+- Include a "Developer Experience" callout that mentions the devcontainer and what tools it provides out of the box
 - Terraform and provider version badges if possible
+- Include a migration notice at the top if `TARGET_ORG` differs from the source org, pointing to the Migration Checklist in `docs/prerequisites.md`
 
 **Output:** Updated `README.md`
 
@@ -417,5 +492,12 @@ Artifacts: README.md, docs/SETUP.md, docs/ARCHITECTURE.md, docs/analysis.md, doc
 ## Boundaries
 
 - **Always**: Scan code before writing, cite actual file paths, validate freshness before reuse, auto-handoff across steps
+- **Always**: Ask for `TARGET_ORG` and `TARGET_REPO` before generating any document — this is the first action in every fresh run
+- **Always**: Flag every org-specific string in generated docs with a migration callout or replacement token
+- **Always**: Trace the full Terraform module chain (this repo → private wrapper → public AVM modules) when describing module design
+- **Always**: Document agent workflows (local IDE mode and cloud coding agent mode) when covering the ALZ vending flow
+- **Always**: Include the Migration Checklist in `docs/prerequisites.md`
 - **Ask first**: Skipping steps, generating partial docs, changing output locations
 - **Never**: Fabricate configuration values, skip the analysis step, write docs without reading the source
+- **Never**: Use the source org name (e.g. `nathlan`) as if it is the target org in generated documentation
+- **Never**: Describe a private GitHub-hosted Terraform module as if it is a public Terraform Registry module
