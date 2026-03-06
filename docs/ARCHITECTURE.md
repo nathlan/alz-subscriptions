@@ -1,102 +1,311 @@
-## Architecture Purpose
+## Architecture: Azure Landing Zone Vending Machine
 
-This repository implements a centralized Azure Landing Zone subscription vending model
-using Terraform and GitHub Actions. The design favors consistency over per-workload
-customization by placing shared controls, identity, networking intent, and lifecycle
-automation behind one root module and one deployment pipeline.
+This document explains the design philosophy, module structure, and operational patterns that enable self-service Azure subscription provisioning at scale.
 
-## Architecture at a Glance
+---
 
-The core pattern is map-based: many landing zones are declared as entries in one
-`landing_zones` map, then provisioned through a single module invocation.
+## 1. Map-Based Pattern: Single Config, Multiple Landing Zones
 
-```text
-Request Source
-   │
-   ├─ Standard flow: Git change (PR to main)
-   └─ Optional flow: Issue with "alz-vending" label (agent-assisted)
-                         │
-                         ▼
-                terraform.tfvars (landing_zones map)
-                         │
-                         ▼
-                 Root Terraform module
-                         │
-                         ▼
-    terraform-azurerm-landing-zone-vending (external module)
-                         │
-                         ▼
-   Azure resources + remote state + Terraform outputs
-                         │
-                         ▼
-                CI/CD status + surfaced outputs
+Rather than managing separate Terraform modules for each landing zone, this solution uses a **single map structure** in `terraform.tfvars` to define all landing zones.
+
+```hcl
+landing_zones = {
+  api-prod = { ... }
+  api-dev  = { ... }
+  web-test = { ... }
+}
 ```
 
-## Map-Based Architecture Pattern
+One module call iterates over the map:
 
-The repository uses one shared configuration surface for all landing zones:
+```hcl
+module "landing_zones" {
+  source = "github.com/insight-agentic-platform-project/terraform-azurerm-landing-zone-vending?ref=v1.0.6"
+  landing_zones = var.landing_zones
+}
+```
 
-- Common settings are global (billing scope, management group, hub network ID,
-  GitHub organization, base address space, common tags).
-- Each landing zone is a keyed object in `landing_zones`.
-- Required per-zone identity fields are `workload`, `env`, `team`, and `location`.
-- Optional per-zone blocks include:
-  - network (`dns_servers`, `spoke_vnet`)
-  - budget
-  - GitHub federated credential config
+**Benefits:**
+- Centralized configuration — all landing zones defined in one file
+- Consistent state — single `.tfstate` file tracks all resources
+- Easy scaling — add new zones by adding map entries
+- Conflict detection — simple to verify no duplicate keys or overlapping CIDR ranges
+- Audit trail — Git history shows all zone changes clearly
 
-This pattern keeps topology declarative: adding or changing a landing zone is a data
-change in the map, not a new Terraform stack.
+---
 
-## Landing Zone Lifecycle Model
+## 2. Landing Zone Lifecycle
 
-The operational lifecycle follows this chain:
+A landing zone progresses from request to deployed subscription in four phases:
 
-**request → PR → merge → deploy → outputs**
+```
+PHASE 0: User Input              PHASE 1: PR Creation
+┌─────────────────────┐         ┌──────────────────┐
+│ /alz-vending Prompt │         │ Copilot Agent    │
+│ (Local IDE Mode)    │────────▶│ Creates PR       │
+│ Collects inputs     │         │ Adds tfvars      │
+│ Creates issue       │         │ Opens PR on main │
+└─────────────────────┘         └──────────────────┘
+                                         │
+                                 PHASE 2: Review & Merge
+                                 ┌──────────────────┐
+                                 │ PR Approval      │
+                                 │ Branch protect   │
+                                 │ Merge to main    │
+                                 └──────────────────┘
+                                         │
+                                 PHASE 3: Deploy
+                                 ┌──────────────────┐
+                                 │ terraform apply  │
+                                 │ GitHub Actions   │
+                                 │ Creates sub, vnet│
+                                 │ Outputs ready    │
+                                 └──────────────────┘
+```
 
-How this maps in the repo:
+**Phase 0 (Local IDE):** User runs `/alz-vending` prompt in Copilot within VS Code. Prompt collects workload name, environment, location, team, and optional settings. Validation confirms no conflicts with existing zones.
 
-- **Request**: a landing zone change is proposed as Terraform configuration change
-  (or optionally created via the issue-driven agent flow).
-- **PR**: pull requests to `main` trigger plan validation through the deployment
-  workflow.
-- **Merge**: merge to `main` re-triggers the same deployment workflow.
-- **Deploy**: the child workflow delegates execution to a reusable parent workflow.
-- **Outputs**: module outputs expose IDs, names, network address spaces, identities,
-  budget IDs, and calculated prefixes.
+**Phase 1 (Cloud Agent):** Cloud dispatcher assigns Copilot agent to the GitHub issue. Agent reads current `terraform.tfvars`, computes landing zone map entry, creates PR with changes.
 
-This lifecycle makes Git the control plane and Terraform outputs the post-deploy
-contract.
+**Phase 2 (Human Review):** PR requires approval per branch protection rules. Terraform plan is posted as comment for visibility.
 
-## Module Design and Provisioning Scope
+**Phase 3 (Automated Deploy):** On merge to `main`, workflow triggers `terraform apply`. New subscriptions are created and outputs are available for downstream automation.
 
-The root module is intentionally thin: it passes global inputs and the landing zone map
-to one external module pinned at `v1.0.6`. The scope described in repository comments
-and docs includes:
+---
 
-- subscription creation and management group association
-- virtual network and hub peering intent
-- user-managed identity and federated credential inputs
-- role-assignment-related identity outputs
-- optional budget resources
-- auto-generated naming handled by the module
+## 3. Module Chain: Abstraction Layers
 
-Design implication: the repository is an orchestration boundary, while most resource
-construction logic lives in the versioned module dependency.
+This repository participates in a three-layer module hierarchy:
 
-## State Management (Single State)
+```
+┌─────────────────────────────────────────────┐
+│ This Repository:                            │
+│ alz-subscriptions (GitHub)                  │
+│ ├─ Calls terraform-azurerm-landing-zone-   │
+│ │  vending (Private Module)                 │
+│ └─ Coordinates: OIDC, state, vars          │
+└──────────────┬──────────────────────────────┘
+               │ (calls private module)
+               ▼
+┌─────────────────────────────────────────────┐
+│ ⚠️  insight-agentic-platform-project Org    │
+│ terraform-azurerm-landing-zone-vending      │
+│ ├─ Provisions subscriptions                 │
+│ ├─ Creates VNets & subnets                  │
+│ ├─ Manages OIDC & identities                │
+│ └─ Orchestrates Azure Verified Modules      │
+└──────────────┬──────────────────────────────┘
+               │ (uses public modules)
+               ▼
+┌─────────────────────────────────────────────┐
+│ Azure Verified Modules (Public, Microsoft)  │
+│ ├─ avm/res/network/virtual-network          │
+│ ├─ avm/res/authorization/role-assignment    │
+│ ├─ avm/res/authorization/user-assigned-id   │
+│ └─ avm/res/compute/virtual-machine          │
+│    (and others as needed)                   │
+└─────────────────────────────────────────────┘
+```
 
-State is centralized in one Azure Storage backend configuration:
+| Layer | Repo | Purpose | Inputs | Outputs |
+|-------|------|---------|--------|----------|
+| Vending Machine | alz-subscriptions | Coordination, tfvars, CI/CD | Landing zone map, Azure config | Subscription IDs, VNet IDs |
+| Landing Zone Module (⚠️) | terraform-azurerm-landing-zone-vending | Orchestration, OIDC, naming | Zone name, location, team | Subscription, UMI, federated creds |
+| Azure Verified (Public) | azure/terraform-azurerm-avm-* | Resource provisioning | Standard AVM interfaces | Azure resources (VNet, subnet, role) |
 
-- backend type: `azurerm`
-- OIDC enabled (`use_oidc = true`)
-- one container/key path (`landing-zones/main.tfstate`) for all landing zones
+**Why layered?**
+- **Separation of concerns:** Vending logic isolated from AVM complexity
+- **Reusability:** Multiple vending machines can use the same landing zone module
+- **vendor compatibility:** AVM modules are Microsoft-maintained; easy to update
+- **Testing:** Each layer can be tested independently
 
-This is a **single-state model**: every landing zone map entry contributes to the same
-state file lineage. It simplifies unified planning and output visibility, while also
-making state integrity and review discipline critical.
+---
 
-## OIDC Trust and Identity Model (Dual Plan/Apply Identities)
+## 4. State Management: Shared State for All Landing Zones
+
+All landing zones share **one `main.tfstate` file** stored in Azure Storage Backend:
+
+```
+Azure Storage Account
+└─ Container: alz-subscriptions
+   └─ Blob: landing-zones/main.tfstate
+      ├─ State for zone: api-prod
+      ├─ State for zone: api-dev
+      └─ State for zone: web-test
+```
+
+**Benefits of shared state:**
+- **Atomic operations:** All zones updated together; no partial deployments
+- **Single source of truth:** One state file, one history, one lock mechanism
+- **OIDC only:** No static credentials; federated credentials from GitHub OIDC
+- **Audit trail:** Azure Storage access logs track all reads/writes
+
+**Backend configuration (terraform/backend.tf):**
+```hcl
+terraform {
+  backend "azurerm" {
+    resource_group_name      = "rg-terraform-state"
+    storage_account_name     = "stterraformstate"
+    container_name           = "alz-subscriptions"
+    key                      = "landing-zones/main.tfstate"
+    use_oidc                 = true
+  }
+}
+```
+
+---
+
+## 5. OIDC Dual-Identity Model
+
+Two separate Azure identities provide least-privilege access:
+
+### Plan Identity (Reading)
+
+- **Role:** Reader on management group
+- **Scope:** Browse subscriptions, inspect existing resources
+- **Used by:** `terraform plan` during PR validation
+- **Federated to:** GitHub Actions on any PR/push to `main`
+
+### Apply Identity (Provisioning)
+
+- **Role:** Contributor on management group + Billing Account Contributor
+- **Scope:** Create subscriptions, modify resources, write state
+- **Used by:** `terraform apply` on merge to `main`
+- **Federated to:** GitHub Actions on `main` branch only
+
+**OIDC flow:**
+1. GitHub Actions job starts
+2. GitHub OIDC provider issues a short-lived token
+3. Azure login uses token to acquire access token without secret
+4. Terraform executes as the assigned identity
+
+**Why dual identity?**
+- **Security:** Compromised plan operation cannot modify resources
+- **Audit:** Two separate identity traces for compliance
+- **Safety:** Developers can run plans in PRs; only merge can apply
+
+---
+
+## 6. CI/CD Pipeline: GitHub Actions Orchestration
+
+The deployment pipeline is defined in `.github/workflows/terraform-deploy.yml` and calls a reusable parent workflow from `.github-workflows` repository (⚠️ in `insight-agentic-platform-project` org):
+
+```yaml
+uses: insight-agentic-platform-project/.github-workflows/.github/workflows/azure-terraform-deploy.yml@main
+```
+
+**Pipeline stages:**
+
+| Trigger | Stage | Action | Identity |
+|---------|-------|--------|----------|
+| Pull Request to `main` | **Plan** | `terraform plan` + post as PR comment | Plan Identity (Reader) |
+| Merge to `main` | **Validate** | `terraform validate`, Checkov scanning | Plan Identity (Reader) |
+| After Merge | **Apply** | `terraform apply` → creates subscriptions | Apply Identity (Contributor) |
+| Manual | **Dispatch** | Optional: run plan/apply manually | Apply Identity (Contributor) |
+
+**Verification:**
+- All Terraform plan output visible in PR comments
+- Security scan (Checkov) results posted before apply
+- Apply logs available in GitHub Actions UI
+
+---
+
+## 7. Agent Workflows: Local + Cloud Modes
+
+### Mode 1: Local IDE (Phase 0)
+
+User runs `/alz-vending` prompt inside VS Code with Copilot extension.
+
+**Flow:**
+1. Prompt collects zone name, env, location, team interactively
+2. Prompt validates locally (no duplicate keys, address space conflicts)
+3. User confirms configuration
+4. Prompt creates GitHub issue with all inputs
+
+**Tools used:**
+- VS Code Copilot extension
+- GitHub CLI (gh) for issue creation
+- Read-only access to terraform.tfvars
+
+**When to use:** Developers designing zones in IDE; quick validation before cloud submission.
+
+### Mode 2: Cloud Dispatcher (Phase 1-3)
+
+GitHub dispatcher workflow receives Phase 0 issue and assigns Copilot agent.
+
+**Flow:**
+1. Issue is created in repository
+2. `alz-vending-dispatcher.lock.yml` detects new issue
+3. Dispatcher assigns Copilot coding agent to issue
+4. Agent reads current tfvars, computes zone entry, creates PR
+5. PR undergoes review and merge
+6. Workflow applies Terraform
+
+**Tools used:**
+- Copilot agent (GitHub-native coding assistant)
+- GitHub API for PR/issue operations
+- Terraform workflows in `.github/workflows`
+
+**When to use:** Automation teams extending zones; agent handles PR creation autonomously.
+
+**Key difference:** Local mode is synchronous (user waits); cloud mode is async (agent works in background, posts updates to issue).
+
+---
+
+## 8. Developer Experience
+
+### DevContainer Setup
+
+The repository includes a **`.devcontainer/devcontainer.json`** that provides a pre-configured environment:
+
+- **Terraform CLI** (~> 1.10) with providers pre-installed
+- **Azure CLI** (az) for interactive commands
+- **GitHub CLI** (gh) for repository operations
+- **Python 3** + pip for scripting
+- **Node.js** + npm for helper tools
+- **Git** with pre-commit hooks configured
+
+**Benefits:**
+- Consistent environment across team members
+- No local installation required (Docker handles setup)
+- Auto-formatting on save (Terraform fmt, Prettier)
+- Copilot extensions bundled
+
+### Pre-commit Hooks
+
+Configured in `.pre-commit-config.yaml`:
+- **Terraform validate** on every commit
+- **TFSec** for security scanning
+- **Trailing whitespace** cleanup
+- **YAML/JSON** validation
+
+```bash
+# Run manually
+pre-commit run --all-files
+
+# Auto-installs hooks on git init
+```
+
+### Extension Support
+
+- **Terraform Extension:** Syntax highlighting, auto-complete, validation
+- **Copilot** & **Copilot Chat:** AI-assisted code generation and documentation
+- **Azure Tools:** Integrated Azure resource browsing
+- **GitLens:** Blame, history, commit details
+
+---
+
+## Summary: Design Principles
+
+This architecture embodies five key principles:
+
+1. **Single Source of Truth:** All zones defined in one map; one state file
+2. **Least Privilege:** Two identities for plan/apply; OIDC for authentication
+3. **Developer Self-Service:** Local `/alz-vending` prompt + cloud agent automation
+4. **Audit & Governance:** Branch protection, OIDC traces, state locking
+5. **Reusability:** Layered modules enable sharing across use cases
+
+For step-by-step setup, see [docs/SETUP.md](SETUP.md).
 
 The deployment workflow defines a two-identity model:
 
@@ -131,7 +340,7 @@ Deployment is a child-to-parent reusable workflow model:
   - pushes to `main` (apply path)
   - manual dispatch (environment input)
 - Child workflow calls a centralized reusable workflow in
-  `nathlan/.github-workflows`.
+  `insight-agentic-platform-project/.github-workflows`.
 - The child passes working directory and environment context; credentials are injected
   via secrets.
 
