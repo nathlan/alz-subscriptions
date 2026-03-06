@@ -8,9 +8,9 @@
 # Common Configuration
 # ========================================
 
-subscription_billing_scope       = "PLACEHOLDER_BILLING_SCOPE" # Update with actual billing scope
-subscription_management_group_id = "Corp"
-hub_network_resource_id          = "PLACEHOLDER_HUB_VNET_ID" # Update with actual hub VNet ID
+subscription_billing_scope       = "PLACEHOLDER_BILLING_SCOPE"       # Update with actual billing scope
+subscription_management_group_id = "PLACEHOLDER_MANAGEMENT_GROUP_ID" # Update with actual management group ID"
+hub_network_resource_id          = "PLACEHOLDER_HUB_VNET_ID"         # Update with actual hub VNet ID
 github_organization              = "nathlan"
 azure_address_space              = "10.100.0.0/16"
 
