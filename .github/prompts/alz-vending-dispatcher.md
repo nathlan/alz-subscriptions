@@ -113,7 +113,7 @@ This workflow ONLY handles issues with the `alz-vending` label. If the triggerin
 
 1. **Read the issue**: Call `issue_read` to get the full details of issue #${{ github.event.issue.number }}, including labels, body, and the original author.
 2. **Check label**: If the issue does NOT have the `alz-vending` label, use `noop` to log: `"Issue #<number> is not an ALZ vending issue (missing alz-vending label). Skipping."` — **Stop here.**
-3. **Identify the requester**: Extract the GitHub username from the **`Requested By`** row in the issue body table (e.g. `| Requested By | @username |`). This is the person to notify — do NOT use the issue author.
+3. **Identify the requester**: Extract the GitHub username from the **`Requested By`** row in the issue body table (e.g. `| Requested By | @nathlan |`). This is the person to notify — do NOT use the issue author.
 4. **Check for a linked PR**: Use `search_pull_requests` or `list_pull_requests` to look for a pull request that closed this issue.
 
 ### Step 2: Notify and Hand Off

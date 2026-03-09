@@ -53,6 +53,18 @@ output "budget_resource_ids" {
   value       = module.landing_zones.budget_resource_ids
 }
 
+output "tfplan_client_ids" {
+  description = "Map of landing zone keys to their Terraform plan UMI client IDs (Reader role)"
+  value       = module.landing_zones.tfplan_client_ids
+  sensitive   = true
+}
+
+output "tfapply_client_ids" {
+  description = "Map of landing zone keys to their Terraform apply UMI client IDs (Owner role)"
+  value       = module.landing_zones.tfapply_client_ids
+  sensitive   = true
+}
+
 output "calculated_address_prefixes" {
   description = "The automatically calculated address prefixes for virtual networks"
   value       = module.landing_zones.calculated_address_prefixes

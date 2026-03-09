@@ -114,7 +114,7 @@ This repository has three distinct types of agent components. Documentation must
 
 | Type Label | What it is | File location pattern | Example |
 |------------|-----------|----------------------|----------|
-| `[Local agent]` | A VS Code Copilot prompt + agent pair invoked interactively in the IDE | `.github/prompts/*.prompt.md` + `.github/agents/*.agent.md` | `/landing-zone-vending` prompt invoking the `ALZ Vending` agent |
+| `[Local agent]` | A VS Code Copilot prompt + agent pair invoked interactively in the IDE | `.github/prompts/*.prompt.md` + `.github/agents/*.agent.md` | `/alz-vending-machine` prompt invoking the `ALZ Subscription Vending` agent |
 | `[Agentic Workflow]` | A GitHub Agentic Workflow definition (`.md` in workflows/) that triggers on events and dispatches work | `.github/workflows/*.md` (+ compiled `.lock.yml`) | `alz-vending-dispatcher.md` — dispatches agent on issue open |
 | `[Cloud coding agent]` | A Copilot coding agent assigned by an Agentic Workflow to work on issues/PRs in the cloud | `.github/agents/*.agent.md` (same agent file, different runtime context) | `alz-vending` agent running in cloud via dispatcher |
 
@@ -123,7 +123,7 @@ When documenting agent workflows, always use these bracketed type labels and inc
 ### Prompt Names vs File Names
 
 Prompt files have a `name:` field in their YAML frontmatter that determines the VS Code `/` command. This is often different from the filename. **Always read the frontmatter** to get the actual prompt command name:
-- File: `alz-vending.prompt.md` → Prompt name (frontmatter): `landing-zone-vending` → VS Code command: `/landing-zone-vending`
+- File: `alz-vending.prompt.md` → Prompt name (frontmatter): `alz-vending-machine` → VS Code command: `/alz-vending-machine`
 
 Never assume the prompt command matches the filename. Always cite the frontmatter `name:` value.
 
@@ -471,7 +471,7 @@ Artifact: docs/SETUP.md
   - Address space auto-calculation
   - CI/CD pipeline flow (reusable workflow pattern)
   - Agent-assisted workflow — document all **three agent component types** using the bracketed taxonomy:
-    - `[Local agent]`: The VS Code prompt + agent pair. Use the actual prompt command from frontmatter `name:` field (e.g. `/landing-zone-vending`, NOT `/alz-vending`). Reference both the `.prompt.md` and `.agent.md` file paths.
+    - `[Local agent]`: The VS Code prompt + agent pair. Use the actual prompt command from frontmatter `name:` field (e.g. `/alz-vending-machine`, NOT `/alz-vending`). Reference both the `.prompt.md` and `.agent.md` file paths.
     - `[Agentic Workflow]`: The GitHub Agentic Workflow dispatcher (`.md` definition file in `.github/workflows/`). Explain what events trigger it, what safe-outputs it uses, and how it bridges local agent output to cloud agent execution.
     - `[Cloud coding agent]`: The Copilot coding agent assigned by the Agentic Workflow. Reference the `.agent.md` file. Explain it runs the same agent definition but in a cloud/GitHub context rather than local IDE.
   - Developer experience — document the devcontainer and what it provides
@@ -514,7 +514,7 @@ Artifact: docs/ARCHITECTURE.md
   ### [Agentic Workflow] <Name> (`<workflow-md-file-path>`)
   ### [Cloud coding agent] <Name> (`<agent-file-path>`)
   ```
-  Each heading must include the component type in brackets, the display name, and the source file path(s) in parenthetical backticks. Use the prompt command from frontmatter `name:` (e.g. `/landing-zone-vending`), not the filename.
+  Each heading must include the component type in brackets, the display name, and the source file path(s) in parenthetical backticks. Use the prompt command from frontmatter `name:` (e.g. `/alz-vending-machine`), not the filename.
 - Include a "Developer Experience" callout that mentions the devcontainer and what tools it provides out of the box
 - Terraform and provider version badges if possible
 - Include a migration notice at the top if `TARGET_ORG` differs from the source org, pointing to the Migration Checklist in `docs/prerequisites.md`
@@ -561,7 +561,7 @@ Artifacts: README.md, docs/SETUP.md, docs/ARCHITECTURE.md, docs/analysis.md, doc
 - **Always**: Trace the full Terraform module chain (this repo → private wrapper → public AVM modules) when describing module design
 - **Always**: Document agent workflows using the three-tier taxonomy: `[Local agent]`, `[Agentic Workflow]`, `[Cloud coding agent]` — never collapse into a two-tier model
 - **Always**: Read `.md` files in `.github/workflows/` as GitHub Agentic Workflow definitions — they contain frontmatter config and agent instructions, not documentation
-- **Always**: Read prompt file frontmatter to get the actual VS Code `/` command name (e.g. `/landing-zone-vending`) — never assume it matches the filename
+- **Always**: Read prompt file frontmatter to get the actual VS Code `/` command name (e.g. `/alz-vending-machine`) — never assume it matches the filename
 - **Always**: Include the Migration Checklist in `docs/prerequisites.md`
 - **Ask first**: Skipping steps, generating partial docs, changing output locations
 - **Never**: Fabricate configuration values, skip the analysis step, write docs without reading the source
