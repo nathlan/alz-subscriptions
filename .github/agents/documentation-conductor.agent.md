@@ -106,6 +106,54 @@ This repository uses **GitHub Agentic Workflows** (gh-aw). You **must** understa
 
 > **Critical:** `.md` files in `.github/workflows/` are NOT documentation — they are executable workflow definitions. Never skip them during scanning.
 
+### Agentic Workflow Secrets
+
+Every repository with an agentic workflow requires specific GitHub Actions secrets. When generating documentation, apply these rules:
+
+1. **`GH_AW_*` secrets — parse from frontmatter.** Scan every `.md` workflow definition for `${{ secrets.GH_AW_* }}` references **anywhere** in the frontmatter. Any match means that secret must be set as a GitHub Actions secret. Document each one found, including the **fine-grained PAT permissions** the token requires. Common locations where `${{ secrets.GH_AW_* }}` may appear:
+   - `tools.github.github-token` — overrides the default `GITHUB_TOKEN` for GitHub MCP tool access (e.g. cross-repo reads, remote mode)
+   - `safe-outputs.github-token` — overrides the default `GITHUB_TOKEN` for safe-output write operations (e.g. cross-repo issue creation, agent assignment)
+   - `steps[].run` — used in shell commands (e.g. `curl` calls to fetch cross-repo content)
+
+> **Important:** The `permissions:` block and `tools.github.toolsets` do NOT require a PAT. They work with the auto-generated `GITHUB_TOKEN`, just like standard GitHub Actions. Only document a secret when `${{ secrets.* }}` is explicitly referenced.
+
+#### Deriving Fine-Grained PAT Permissions
+
+For each `GH_AW_*` secret, derive the minimum fine-grained PAT permissions from **how and where** the token is used in the frontmatter. Document the required permissions alongside each secret so whoever creates the PAT knows exactly what to select.
+
+**When a `GH_AW_*` token is used in `tools.github.github-token`:**
+- The token replaces `GITHUB_TOKEN` for all GitHub MCP tool operations
+- Derive read permissions from the `toolsets` configured alongside it:
+
+  | Toolset | Repository Permission |
+  |---------|----------------------|
+  | `repos` | Contents: **Read** |
+  | `issues` | Issues: **Read** |
+  | `pull_requests` | Pull requests: **Read** |
+  | `actions` | Actions: **Read** |
+  | `code_security` | Code scanning alerts: **Read** |
+  | `discussions` | Discussions: **Read** |
+
+- If the workflow reads from repos other than the triggering repo, those repos must be included in the token's repository access scope
+
+**When a `GH_AW_*` token is used in `safe-outputs.github-token`:**
+- The token replaces `GITHUB_TOKEN` for all safe-output write operations
+- Derive write permissions from the safe-output types configured alongside it:
+
+  | Safe Output Type | Repository Permission |
+  |------------------|----------------------|
+  | `assign-to-agent` | Issues: **Read and write** |
+  | `add-comment` | Issues: **Read and write** |
+  | `create-issue` | Issues: **Read and write** |
+  | `create-pull-request` | Contents: **Read and write**, Pull requests: **Read and write** |
+
+- If any safe-output targets a different repo (e.g. `create-issue` with `target-repo: "org/other-repo"`), that repo must also be in the token's repository access scope
+- If `assign-to-agent` assigns a coding agent that creates branches/PRs, the token also needs Contents: **Read and write** and Pull requests: **Read and write** on the triggering repo
+
+**When a `GH_AW_*` token is used in `steps[].run`:**
+- Examine the shell commands to determine what API operations the token is used for
+- Typically used for cross-repo content reads (e.g. `curl` with `Authorization: Bearer`) — requires Contents: **Read** on the target repo
+
 ---
 
 ## Agent Component Types
@@ -309,9 +357,10 @@ Artifact: docs/analysis.md
 2. **Extract GitHub secrets** from workflow files:
    - `AZURE_CLIENT_ID_PLAN` — What identity, what role, what scope
    - `AZURE_CLIENT_ID_APPLY` — What identity, what role, what scope
-   - `AZURE_TENANT_ID` — Azure AD tenant
    - `AZURE_SUBSCRIPTION_ID` — Management subscription
    - Any other secrets referenced in workflows
+   - **Agentic Workflow secrets** (see [Agentic Workflow Secrets](#agentic-workflow-secrets) section above):
+     - Any `GH_AW_*` secret found in `.md` workflow frontmatter
 
 3. **Extract GitHub configuration requirements:**
    - Repository environments (e.g., `production`) and their protection rules
@@ -563,6 +612,7 @@ Artifacts: README.md, docs/SETUP.md, docs/ARCHITECTURE.md, docs/analysis.md, doc
 - **Always**: Read `.md` files in `.github/workflows/` as GitHub Agentic Workflow definitions — they contain frontmatter config and agent instructions, not documentation
 - **Always**: Read prompt file frontmatter to get the actual VS Code `/` command name (e.g. `/alz-vending-machine`) — never assume it matches the filename
 - **Always**: Include the Migration Checklist in `docs/prerequisites.md`
+- **Always**: Parse agentic workflow `.md` frontmatter for `${{ secrets.GH_AW_* }}` references and document each as a required secret
 - **Ask first**: Skipping steps, generating partial docs, changing output locations
 - **Never**: Fabricate configuration values, skip the analysis step, write docs without reading the source
 - **Never**: Use the source org name (e.g. `nathlan`) as if it is the target org in generated documentation

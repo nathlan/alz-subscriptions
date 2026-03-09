@@ -1,4 +1,4 @@
-name: Terraform Deployment
+name: Azure Terraform CI/CD
 
 # ============================================================================
 # CHILD WORKFLOW - Calls Reusable Parent Workflow
@@ -31,7 +31,7 @@ on:
       - main
     paths:
       - 'terraform/**'
-      - '.github/workflows/terraform-deploy.yml'
+      - '.github/workflows/azure-terraform-cicd-caller.yml'
 
   # Trigger on pull requests to main (for plan validation)
   pull_request:
@@ -39,7 +39,7 @@ on:
       - main
     paths:
       - 'terraform/**'
-      - '.github/workflows/terraform-deploy.yml'
+      - '.github/workflows/azure-terraform-cicd-caller.yml'
 
   # Allow manual triggering for testing and emergency deployments
   workflow_dispatch:
@@ -55,7 +55,7 @@ jobs:
   # Call the parent reusable workflow from the central repository
   deploy:
     name: Deploy to Azure
-    uses: nathlan/shared-assets/.github/workflows/azure-terraform-deploy.yml@main
+    uses: nathlan/shared-assets/.github/workflows/azure-terraform-cicd-reusable.yml@main
 
     with:
       # REQUIRED: Working directory containing Terraform code

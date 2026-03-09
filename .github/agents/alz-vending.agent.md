@@ -1,7 +1,6 @@
 ---
 name: ALZ Subscription Vending
 description: Self-service Azure Landing Zone provisioning
-model: Claude Sonnet 4.6 (copilot)
 tools:
   ['vscode/askQuestions', 'execute', 'read', 'agent', 'edit', 'search', 'github/*']
 mcp-servers:
