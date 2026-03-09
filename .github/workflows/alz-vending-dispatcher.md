@@ -41,7 +41,7 @@ You are a dispatcher that handles Copilot agent assignment for Azure Landing Zon
 
 ## Tool Usage
 
-You have two sets of tools. **Use ONLY these tools.** Do NOT use the `gh` CLI, `curl`, direct API calls, or any other method.
+You have two sets of tools. **Use ONLY these tools!** Do NOT use the `gh` CLI, `curl`, direct API calls, or any other method.
 
 ### Phase 1 — Read with GitHub MCP Server Tools
 
