@@ -15,11 +15,12 @@
 # ==============================================================================
 
 module "landing_zones" {
-  source = "github.com/nathlan/terraform-azurerm-landing-zone-vending?ref=v1.0.6"
+  source = "github.com/nathlan/terraform-azure-landing-zone-vending?ref=v1.0.0"
 
   # Common configuration shared across all landing zones
   subscription_billing_scope       = var.subscription_billing_scope
   subscription_management_group_id = var.subscription_management_group_id
+  subscription_devtest_supported   = var.subscription_devtest_supported
   hub_network_resource_id          = var.hub_network_resource_id
   github_organization              = var.github_organization
   azure_address_space              = var.azure_address_space

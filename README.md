@@ -1,118 +1,103 @@
-# Azure Landing Zone Subscriptions
+## Azure Landing Zone Vending Machine
 
-This repository manages Azure Landing Zone subscription provisioning using Infrastructure as Code (Terraform).
+![Terraform](https://img.shields.io/badge/terraform-~%3E%201.10-623ce4?logo=terraform)
+![Provider: azapi](https://img.shields.io/badge/provider-azapi%20~%3E%202.5-0078d4)
+![Provider: modtm](https://img.shields.io/badge/provider-modtm%20~%3E%200.3-0078d4)
 
-## Overview
+The **Azure Landing Zone Vending Machine** is a self-service platform for provisioning complete Azure Landing Zones through a map-based Terraform configuration, GitHub Agentic Workflows, and optional VS Code agents. Submit a landing zone request; the system automates subscription creation, virtual network provisioning, managed identity setup with OIDC federation, budget alerts, and role assignments—scaling from single zones to hundreds without code duplication.
 
-This repository is a standard Azure Landing Zone workload repository that:
-- **Provisions landing zone infrastructure** using Terraform
-- **Calls the LZ vending module** (`terraform-azurerm-landing-zone-vending`)
-- **Uses centralized CI/CD workflows** from `nathlan/.github-workflows`
-- **Automates plan on PR** and apply on merge to main
+### Quick Start
 
-## Repository Structure
+**New to this repository?** Start with [SETUP.md](docs/SETUP.md) for step-by-step deployment instructions.
+
+### What You'll Need
+
+- **Azure prerequisites:** Billing scope, management group hierarchy, optional hub virtual network
+- **GitHub:** Organization with Copilot, Azure Credentials (OIDC-federated user-managed identities)
+- **Terraform state:** Azure Storage Account for remote state (configured at `terraform init` time)
+- **Module fork:** Private `terraform-azurerm-landing-zone-vending` module (fork from source into your org)
+
+Learn more: [Prerequisites](docs/prerequisites.md) | [Architecture](docs/ARCHITECTURE.md)
+
+### Agent Workflows
+
+This repository orchestrates landing zone provisioning through three agent component types:
+
+#### [Local agent] alz-vending
+VS Code-based interactive prompt (`/alz-vending`) for collecting landing zone requests. Validates inputs, retrieves GitHub user context, and creates issues with `alz-vending` label for dispatcher assignment.
+
+#### [Agentic Workflow] ALZ Vending Dispatcher
+Listens for issue open events, detects `alz-vending` label, and assigns the cloud coding agent. On closure, orchestrates cross-repository handoff of outputs (subscription IDs, UMI credentials, VNet IDs) to workload repositories.
+
+#### [Cloud coding agent] alz-vending
+Reads issue details, updates `terraform.tfvars` with new landing zone map entries, creates pull request, and awaits review/merge. Uses Terraform validation for configuration schema enforcement.
+
+### Developer Experience
+
+This repository includes a **DevContainer** (`/.devcontainer/devcontainer.json`) preconfigured with:
+
+- **Terraform:** Latest CLI with language server support
+- **Providers:** Azure API, modtm, random, time
+- **Tools:** Docker, GitHub CLI, Node.js, Python 3.11
+- **VS Code extensions:** Terraform, Copilot Chat, GitHub PR management
+
+Start coding immediately with `devcontainer open` — no local Terraform installation required.
+
+### Repository Structure
 
 ```
-.
+alz-subscriptions/
+├── terraform/              # Infrastructure as code
+│   ├── main.tf             # Module invocation (landing-zone-vending)
+│   ├── variables.tf        # Input schemas
+│   ├── outputs.tf          # Outputs (subscription IDs, VNet info)
+│   ├── versions.tf         # Provider constraints
+│   ├── terraform.tfvars    # Landing zone map configuration
+│   ├── checkov.yml         # Security scanning
+│   └── .tflint.hcl         # Linting rules
 ├── .github/
-│   └── workflows/
-│       └── terraform-deploy.yml  # Child workflow: plan on PR, apply on merge
-├── terraform/
-│   ├── main.tf                  # Root module calling LZ vending module
-│   ├── variables.tf             # Input variable definitions
-│   ├── outputs.tf               # Module outputs
-│   ├── backend.tf               # Azure Storage backend configuration
-│   ├── terraform.tfvars         # Variable values for this landing zone
-│   └── .terraform-version       # Terraform version constraint
-└── README.md
+│   ├── agents/             # Custom Copilot agent definitions
+│   │   └── alz-vending.agent.md
+│   ├── workflows/          # [Agentic Workflows marked below]
+│   │   ├── alz-vending-dispatcher.md        # ⚡ Agentic Workflow
+│   │   ├── alz-vending-dispatcher.lock.yml  # Compiled GitHub Actions (auto-gen)
+│   │   ├── terraform-deploy.yml             # Infrastructure deployment
+│   │   └── copilot-setup-steps.yml          # Setup utility
+│   ├── prompts/            # VS Code prompt templates
+│   ├── instructions/       # Codebase conventions (Terraform, Markdown, CI/CD)
+│   └── aw/                 # Agentic workflow configuration
+├── docs/
+│   ├── SETUP.md            # Deployment guide (start here)
+│   ├── ARCHITECTURE.md     # Design deep-dive
+│   ├── prerequisites.md    # Required Azure/GitHub resources
+│   └── analysis.md         # Repository structure analysis
+├── .devcontainer/          # Development environment
+│   ├── devcontainer.json
+│   └── setup.sh
+└── README.md               # This file
 ```
 
-## How It Works
+### Configuration: Landing Zone Map
 
-This repository uses **child workflows** that call the reusable parent workflow from `nathlan/.github-workflows`:
+All landing zones are defined in a single map in `terraform/terraform.tfvars`. The Terraform module processes all entries in one invocation:
 
-1. **Make Changes**: Update `terraform/terraform.tfvars` or Terraform code in `terraform/`
-2. **Create PR**: Open a pull request with your changes
-3. **Automated Plan**: The `terraform-deploy.yml` workflow runs on PR, calling the reusable parent workflow to execute `terraform plan`
-4. **Review**: Platform team reviews the plan output and configuration changes
-5. **Merge**: PR merge triggers `terraform-deploy.yml` workflow again
-6. **Deploy**: The reusable parent workflow executes `terraform apply` to provision infrastructure
+| Field | Type | Example | Description |
+|-------|------|---------|-------------|
+| `subscription_billing_scope` | string | `/providers/Microsoft.Billing/billingAccounts/{id}/agreementType/EnterpriseAgreement` | Azure billing scope for subscription alias creation |
+| `subscription_management_group_id` | string | `Corp` or UUID | Management group for landing zone association |
+| `hub_network_resource_id` | string | `/subscriptions/{id}/resourceGroups/{rg}/providers/Microsoft.Network/virtualNetworks/{name}` | Hub virtual network for spoke peering (optional) |
+| `github_organization` | string | `insight-agentic-platform-project` | GitHub org for OIDC federated credentials |
+| `landing_zones[*].workload` | string | `example-api-prod` | Workload identifier |
+| `landing_zones[*].env` | string | `dev` / `test` / `prod` | Environment designation |
+| `landing_zones[*].team` | string | `platform-engineering` | Owning team name |
 
-### Workflow Architecture
+### Migration Notice
 
-The workflow calls the centralized parent workflow:
-- **Parent Workflow**: `nathlan/.github-workflows/.github/workflows/azure-terraform-deploy.yml@main`
-- **Child Workflow**: Local `.github/workflows/terraform-deploy.yml` configures and invokes the parent
-- **Triggers**: Pull requests (plan), pushes to main (apply), manual dispatch
-- **Benefits**: Consistent deployment logic, centralized updates, reduced duplication
+This repository references a **private Terraform module** (`terraform-azurerm-landing-zone-vending`) originally in `nathlan` organization. Before deployment, fork the module into `insight-agentic-platform-project` and update all module source references. See [SETUP.md](docs/SETUP.md) for migration checklist.
 
-## Usage
+### Related Documentation
 
-### Updating Landing Zone Configuration
-
-To modify the landing zone infrastructure:
-
-1. Edit `terraform/terraform.tfvars` with your desired configuration
-2. Create a pull request with your changes
-3. Review the Terraform plan output in the PR
-4. Request review from the platform team
-5. Merge to apply changes
-
-### Manual Terraform Operations
-
-For local testing or manual operations:
-
-```bash
-cd terraform
-
-# Initialize Terraform
-terraform init
-
-# Plan changes
-terraform plan
-
-# Apply changes (use with caution)
-terraform apply
-```
-
-**Note**: The CI/CD workflows use OIDC authentication. For local runs, ensure you have appropriate Azure credentials configured.
-
-## Terraform State
-
-State is stored in Azure Storage:
-- **Resource Group**: `rg-terraform-state`
-- **Storage Account**: `stterraformstate`
-- **Container**: `alz-subscriptions`
-- **State File**: `landing-zones/main.tfstate`
-
-The backend configuration is defined in `terraform/backend.tf` and uses OIDC authentication.
-
-## Required Secrets
-
-GitHub Actions workflows require these repository secrets for OIDC authentication:
-- `AZURE_CLIENT_ID` - Service principal client ID
-- `AZURE_TENANT_ID` - Azure tenant ID
-- `AZURE_SUBSCRIPTION_ID` - Management subscription ID
-
-Configure these in: **Settings → Secrets and variables → Actions**
-
-## Branch Protection
-
-The `main` branch is protected:
-- Require pull request reviews (1 approver)
-- Require status checks to pass (terraform-plan)
-- Dismiss stale reviews on new commits
-- Restrict push access to platform team
-
-## Support
-
-For questions or issues:
-- Create an issue in this repository
-- Contact the platform engineering team
-- See the reusable workflows documentation in `nathlan/.github-workflows`
-
-## Related Repositories
-
-- **LZ Vending Module**: `nathlan/terraform-azurerm-landing-zone-vending` - Private Terraform module for landing zone provisioning
-- **Reusable Workflows**: `nathlan/.github-workflows` - Centralized GitHub Actions workflows for Terraform deployments
-- **Workload Template**: `nathlan/alz-workload-template` - Template repository for creating new workload repos
+- **[SETUP.md](docs/SETUP.md)** — Complete deployment walkthrough
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System design and lifecycle
+- **[Prerequisites](docs/prerequisites.md)** — Azure & GitHub resource requirements
+- **[Analysis](docs/analysis.md)** — Repository structure deep-dive

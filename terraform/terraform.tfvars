@@ -8,9 +8,9 @@
 # Common Configuration
 # ========================================
 
-subscription_billing_scope       = "PLACEHOLDER_BILLING_SCOPE" # Update with actual billing scope
-subscription_management_group_id = "Corp"
-hub_network_resource_id          = "PLACEHOLDER_HUB_VNET_ID" # Update with actual hub VNet ID
+subscription_billing_scope       = "PLACEHOLDER_BILLING_SCOPE"       # Update with actual billing scope
+subscription_management_group_id = "PLACEHOLDER_MANAGEMENT_GROUP_ID" # Update with actual management group ID"
+hub_network_resource_id          = "PLACEHOLDER_HUB_VNET_ID"         # Update with actual hub VNet ID
 github_organization              = "nathlan"
 azure_address_space              = "10.100.0.0/16"
 
@@ -45,7 +45,7 @@ landing_zones = {
     spoke_vnet = {
       ipv4_address_spaces = {
         default_address_space = {
-          address_space_cidr = "/24"
+          vnet_address_space_prefix = "/24"
           subnets = {
             default = {
               subnet_prefixes = ["/26"]
@@ -86,7 +86,7 @@ landing_zones = {
     spoke_vnet = {
       ipv4_address_spaces = {
         default_address_space = {
-          address_space_cidr = "/24"
+          vnet_address_space_prefix = "/24"
           subnets = {
             default = {
               subnet_prefixes = ["/26"]
@@ -127,7 +127,7 @@ landing_zones = {
     spoke_vnet = {
       ipv4_address_spaces = {
         default_address_space = {
-          address_space_cidr = "/23"
+          vnet_address_space_prefix = "/23"
           subnets = {
             default = {
               subnet_prefixes = ["/26"]
@@ -168,7 +168,7 @@ landing_zones = {
     spoke_vnet = {
       ipv4_address_spaces = {
         default_address_space = {
-          address_space_cidr = "/24"
+          vnet_address_space_prefix = "/24"
           subnets = {
             default = {
               subnet_prefixes = ["/26"]
@@ -209,7 +209,7 @@ landing_zones = {
     spoke_vnet = {
       ipv4_address_spaces = {
         default_address_space = {
-          address_space_cidr = "/24"
+          vnet_address_space_prefix = "/24"
           subnets = {
             default = {
               subnet_prefixes = ["/26"]

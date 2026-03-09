@@ -1,7 +1,8 @@
 ---
-name: landing-zone-vending
+name: alz-vending-machine
 description: Provision a new Azure Landing Zone — collects inputs, validates, then delegates to cloud coding agent
 agent: ALZ Subscription Vending
+model: Claude Haiku 4.5 (copilot)
 ---
 
 # Provision Azure Landing Zone
@@ -12,34 +13,39 @@ Validate a landing zone request using **Phase 0** from your instructions. Use VS
 
 ### Step 1: Gather Required Inputs
 
-Use `ask_questions` to prompt the user for each required field:
+Use `ask_questions` to prompt the user for each required field **one at a time**:
 
-- **Workload Name** — kebab-case (e.g., `payments-api`)
-- **Environment** — Choose from: `Production`, `Development`, `Test`
-- **Location** — Azure region (e.g., `uksouth`)
-- **Team Name** — GitHub team slug (e.g., `payments-team`)
-- **Address Space** — Prefix size only (e.g., `/24`)
-- **Cost Center** — Code (e.g., `CC-4521`)
-- **Team Email** — Email address (e.g., `team@example.com`)
-- **Repository Name** — For OIDC federation (e.g., `payments-api`)
+1. "What is the name of the workload being deployed to Azure?" _(kebab-case, 3-30 chars, e.g. `payments-api`)_
+2. "Which environment will this landing zone be used for?" _(i.e. `dev`, `test`, or `prod`)_
+3. "Which Azure region will this landing zone be deployed to?" _(e.g. `australiaeast`, `newzealandnorth`)_
+4. "What is your GitHub team's slug?" _(e.g. `finance-engineering`)_
+5. "How many devices do you expect to connect to this landing zone?" _(positive integer, e.g. `120`)_
+6. "What is your cost center code?" _(e.g. `CC-4521`)_
+7. "What email should budget alerts be sent to?" _(e.g. `team_mailbox@example.com`)_
 
-### Step 2: Ask About Optional Configuration
+### Step 2: Walk Through Optional Settings
 
-Use `ask_questions` to ask if the user wants to customize optional settings:
+After gathering required inputs, walk the user through each optional setting **individually**. For each one, present the current default value and ask if they want to change it.
 
-**Question:** "Do you want to customize optional settings (subnets, budget, etc.)?"
-- Options: `Use defaults` (recommended) / `Customize settings`
+**2a. Budget (Amount & Threshold)**
+> "Monthly budget is **$1000 USD** with an alert when spending exceeds **80%**. Do you want to change either?"
+- Options: `Keep defaults` / `Change budget settings`
+- If "Change budget settings": ask for new monthly USD amount and/or alert threshold percentage
 
-**If "Customize settings" selected**, gather:
-- **Budget Amount** — Monthly USD (default: `500`)
-- **Budget Threshold** — Alert percentage (default: `80`)
-- **Additional Subnets** — Beyond default and app subnets (e.g., `data=/27;cache=/28`)
-- **Extra Subscription Tags** — Additional tags (e.g., `criticality=high`)
+**2b. Repository Name**
+> "The landing zone's associated repository will be called **alz-{workload_name}**. Do you want to change it?"
+- Options: `Keep alz-{workload_name}` / `Change name`
+- If "Change name": ask for the new repository name
 
-**If "Use defaults" selected**, apply:
-- Budget: $500/month with 80% threshold
-- Subnets: `default` (/26) and `app` (/26)
-- No extra tags
+**2c. Subnet Layout**
+> "Default subnet is `workload` with 3 usable IPs( /29 ). Would you like to define your own subnets?"
+- Options: `Keep default /29` / `Define custom subnets`
+- If "Define custom subnets": ask for subnet names and device counts (e.g., `workload=60;data=30;cache=15`). User-provided subnets **replace** the default entirely.
+
+**2d. Extra Subscription Tags**
+> "Do you want to add any extra tags to your subscription/landing zone?"
+- Options: `No extra tags` / `Add tags`
+- If "Add tags": ask for key=value pairs (e.g., `criticality=high;data_classification=internal`)
 
 ### Step 3: Validate & Check for Conflicts
 
@@ -47,21 +53,41 @@ Use `ask_questions` to ask if the user wants to customize optional settings:
 2. Use read-only GitHub MCP tools to fetch `terraform/terraform.tfvars` from `nathlan/alz-subscriptions`
 3. Check for:
    - **Duplicate keys:** Compute `{workload_name}-{env}` and verify it doesn't already exist
-   - **Address space overlaps:** Ensure the proposed CIDR doesn't overlap with existing landing zones
+   - **Address space overlaps:** Ensure the calculated VNet prefix doesn't overlap with existing landing zones
+   - **Subnet fit:** Every subnet prefix number must be strictly greater than the VNet prefix number (e.g. VNet /24 → subnets must be /25 or higher). Reject and re-prompt if any subnet is too large.
 
 ### Step 4: Present Confirmation Summary
 
-Display a formatted summary with:
-- All validated inputs
-- Computed values: landing zone key, env abbreviation
-- Address space allocation plan
-- Any optional inputs provided
+Display a formatted summary table showing all values the user has provided and any computed/default values. Use this exact format:
+
+```
+## 📋 Landing Zone Configuration Summary
+
+| Setting | Value |
+|---|---|
+| **Workload Name** | {workload_name} |
+| **Environment** | {env} |
+| **Location** | {location} |
+| **Team** | {team_name} |
+| **Expected Devices** | {expected_devices} |
+| **Cost Center** | {cost_center} |
+| **Alert Email** | {team_email} |
+| | |
+| **Landing Zone Key** | {workload_name}-{env} |
+| **VNet Prefix (calculated)** | {vnet_prefix} |
+| **Subnet Layout** | {subnet_layout} |
+| **Budget** | ${budget_amount}/month (alert at {threshold}%) |
+| **OIDC Repository** | {repo_name} |
+| **Extra Tags** | {extra_tags or "none"} |
+```
+
+Ensure computed values (landing zone key, VNet prefix, subnet prefixes) are shown so the user can verify them before confirming.
 
 ### Step 5: Confirm with User
 
-Use `ask_questions` to ask: **"Review the configuration above. Ready to create the landing zone?**
+Use `ask_questions` to ask: **"Review the landing zone configuration above. Is it correct?"**
 
-- Options: `Yes, create the issue` / `No, cancel`
+- Options: `Yes, submit the landing zone for deployment` / `No, cancel`
 - If "No", stop and allow user to provide different inputs
 - If "Yes", proceed to Step 6
 
@@ -79,7 +105,7 @@ Use `ask_questions` to ask: **"Review the configuration above. Ready to create t
    mcp_github_issue_write (method: create)
    owner: nathlan
    repo: alz-subscriptions
-   title: "🏗️ Landing Zone Request: {workload_name} ({environment})"
+   title: "🏗️ Landing Zone Request: {workload_name} ({env})"
    labels: ["alz-vending", "landing-zone"]
    body: [See Phase 0 Issue Body Template in agent instructions]
    ```
