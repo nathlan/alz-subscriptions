@@ -186,6 +186,13 @@ Never assume the prompt command matches the filename. Always cite the frontmatte
 | Read `.md` files in `.github/workflows/` as Agentic Workflow definitions | Skip `.md` files in workflows — they are executable, not documentation |
 | Read prompt frontmatter to get the actual `/` command name | Assume the prompt command name matches the filename |
 | Document every secret and environment variable found | Skip secrets that "seem obvious" |
+| Scan for `${{ vars.* }}` references alongside `${{ secrets.* }}` | Only document secrets and ignore workflow variables |
+| Scan `variables.tf` for `sensitive = true` and document how to provide values | Ignore sensitive Terraform variables as "implementation details" |
+| Scan Terraform resources that **create** secrets/variables and document their inputs | Only document secrets **consumed** by workflows, ignoring what Terraform provisions |
+| Read `provider.tf` and document all provider auth methods (OIDC, GitHub App, etc.) | Assume all providers use OIDC or skip non-Azure provider auth |
+| Scan workflow files for **all** `environment:` references | Assume only `production` exists |
+| Generate the prerequisites checklist dynamically from what the code requires | Use a fixed ALZ-specific checklist template regardless of the repository |
+| Look for backend config in `terraform.tf`, `versions.tf`, or `backend.tf` | Assume backend is always in `backend.tf` |
 | Run all 5 steps end-to-end without pausing for manual approval | Pause for approval gates between steps |
 | Delegate writing to SE: Tech Writer for polished output | Write final prose yourself — delegate to the specialist |
 | Track progress with the todo tool | Lose track of which steps are complete |
@@ -236,7 +243,7 @@ Before trusting any existing output artifact, validate whether it is still curre
 ### Step Dependency Map
 
 - Step 1 (`docs/analysis.md`): all repo files in scope of codebase scan.
-- Step 2 (`docs/prerequisites.md`): `docs/analysis.md`, `terraform/*.tf`, `terraform/terraform.tfvars`, `.github/workflows/*.yml`, `.github/workflows/*.yaml`, `.github/workflows/*.md`.
+- Step 2 (`docs/prerequisites.md`): `docs/analysis.md`, `terraform/*.tf`, `terraform/terraform.tfvars`, `.github/workflows/*.yml`, `.github/workflows/*.yaml`, `.github/workflows/*.md`, `terraform/provider.tf`.
 - Step 3 (`docs/SETUP.md`): `docs/analysis.md`, `docs/prerequisites.md`.
 - Step 4 (`docs/ARCHITECTURE.md`): `docs/analysis.md`, `terraform/main.tf`, `terraform/variables.tf`, `terraform/terraform.tfvars`, `.github/workflows/*.md`, `.github/agents/*.agent.md`, `.github/prompts/*.prompt.md`.
 - Step 5 (`README.md`): `docs/analysis.md`, `docs/prerequisites.md`, `docs/SETUP.md`, `docs/ARCHITECTURE.md`.
@@ -255,15 +262,16 @@ Before trusting any existing output artifact, validate whether it is still curre
 
 1. **Scan repository structure** — List all directories and files
 2. **Analyze Terraform configuration:**
-   - Read `terraform/versions.tf` → Extract required Terraform version and providers
-   - Read `terraform/backend.tf` → Extract state storage configuration
+   - Read `terraform/versions.tf` (or `terraform/terraform.tf`) → Extract required Terraform version and providers
+   - Read backend configuration (may be in `backend.tf`, `terraform.tf`, or `versions.tf`) → Extract state storage configuration
    - Read `terraform/main.tf` → Identify modules, their sources, and versions
-   - Read `terraform/variables.tf` → Map all input variables, types, defaults, and validations
+   - Read `terraform/variables.tf` → Map all input variables, types, defaults, and validations. **Flag any variable with `sensitive = true`** — these require values at apply time (via `-var`, `.auto.tfvars`, or environment variables) and must be documented as prerequisites.
    - Read `terraform/terraform.tfvars` → Identify actual configured values vs placeholders
    - Read `terraform/outputs.tf` → Document all outputs
    - Read `terraform/checkov.yml` → Note security scanning configuration
+   - **Scan Terraform resources that create secrets or variables** (e.g. `github_actions_organization_secret`, `github_actions_environment_secret`, `github_actions_variable`, `github_actions_organization_variable`) → These represent configuration that the Terraform code **provisions**. Their input values (often from sensitive variables) are prerequisites that must be provided at apply time. Document both the resource being created and the input variable that feeds it.
 3. **Analyze GitHub configuration:**
-   - Read all `.github/workflows/*.yml` → Extract triggers, secrets referenced, permissions, reusable workflows called
+   - Read all `.github/workflows/*.yml` → Extract triggers, secrets referenced (`${{ secrets.* }}`), **variables referenced** (`${{ vars.* }}`), permissions, reusable workflows called. Variables referenced via `${{ vars.* }}` are GitHub Actions repository or organisation variables that must be manually configured — document each one with its expected value.
    - Read all `.github/workflows/*.md` → These are **GitHub Agentic Workflow definition files** (not documentation). Extract frontmatter: triggers (`on:`), permissions, tools/toolsets, engine, safe-outputs (agent assignments, cross-repo issue creation, comment permissions), network rules. Read the markdown body for agent instructions and behavioral rules.
    - For each `.md` workflow definition, note its corresponding `.lock.yml` compiled file — the `.md` is the source of truth, the `.lock.yml` is the compiled GitHub Actions YAML (auto-generated by `gh aw compile`).
    - Read `.github/agents/*.agent.md` → Note any automation agents. Extract: name, description, tools, model, handoffs.
@@ -274,7 +282,13 @@ Before trusting any existing output artifact, validate whether it is still curre
    - MCP server configurations
    - Any URLs, API endpoints, or service references
 
-5. **Identify org-specific strings that require migration:**
+5. **Identify provider authentication requirements:**
+   - Read `terraform/provider.tf` (or wherever the provider block is defined)
+   - For each provider, document the authentication method: OIDC, GitHub App (`app_auth`), service principal, managed identity, token, etc.
+   - For GitHub App authentication (`app_auth`), document: the App must be created in the target org, installed on relevant repos, and the App ID, Installation ID, and PEM private key must be provided
+   - For any provider auth that requires external credentials (not OIDC), document what must be created and how the credentials flow into Terraform (environment variables, `-var` flags, tfvars, etc.)
+
+6. **Identify org-specific strings that require migration:**
    - The source GitHub organisation name embedded in module sources, workflow `uses:` references, agent files, AND Agentic Workflow `.md` definition files (check `safe-outputs` for cross-repo targets like `target-repo: "<org>/..."` and agent `owner:` fields)
    - Private GitHub-hosted modules (sourced via `github.com/<org>/...`) — note these must be forked or mirrored, distinguish from public Terraform Registry modules
    - Reusable workflow repositories (e.g. `<source-org>/.github-workflows`) — note these must exist in the target org
@@ -299,9 +313,25 @@ Before trusting any existing output artifact, validate whether it is still curre
 | State File | [path] |
 
 ## Variables Inventory
-| Variable | Type | Default | Required | Description |
-|----------|------|---------|----------|-------------|
-| [from variables.tf] | | | | |
+| Variable | Type | Default | Required | Sensitive | Description |
+|----------|------|---------|----------|-----------|-------------|
+| [from variables.tf] | | | | Yes/No | |
+
+## Sensitive Variables (require values at apply time)
+| Variable | Fed by | How to Provide |
+|----------|--------|----------------|
+| [from variables.tf where sensitive = true] | [what resource/purpose] | `-var`, `.auto.tfvars`, or `TF_VAR_` env var |
+
+## Terraform-Provisioned Secrets & Variables
+Resources in the Terraform configuration that CREATE secrets or variables (e.g. in GitHub, Azure, etc.):
+| Resource | Type | Name Created | Input Variable | Scope |
+|----------|------|-------------|----------------|-------|
+| [resource name] | [github_actions_organization_secret, etc.] | [secret/variable name] | [var.xxx] | Org / Repo / Environment |
+
+## Provider Authentication
+| Provider | Auth Method | Requirements |
+|----------|------------|--------------|
+| [provider name] | [OIDC / GitHub App / Token / etc.] | [what must be created and configured] |
 
 ## Current Configuration (terraform.tfvars)
 | Setting | Value | Status |
@@ -309,9 +339,9 @@ Before trusting any existing output artifact, validate whether it is still curre
 | [name] | [value] | Real / Placeholder |
 
 ## GitHub Workflows
-| Workflow | Type | Triggers | Secrets Used | Permissions |
-|----------|------|----------|--------------|-------------|
-| [from each .yml and .md] | Standard / Agentic Workflow | | | |
+| Workflow | Type | Triggers | Secrets Used | Variables Used | Permissions |
+|----------|------|----------|--------------|----------------|-------------|
+| [from each .yml and .md] | Standard / Agentic Workflow | | `${{ secrets.* }}` refs | `${{ vars.* }}` refs | |
 
 ## GitHub Agentic Workflows
 For each `.md` workflow definition file found:
@@ -346,37 +376,39 @@ Artifact: docs/analysis.md
 
 **Actions:**
 
-1. **Extract Azure prerequisites** from Terraform config:
-   - Billing scope (Enterprise Agreement / MCA)
-   - Management group hierarchy
-   - Hub virtual network for peering
-   - Terraform state storage (resource group, storage account, container)
-   - Required Azure RBAC roles for the service principals
-   - Address space allocation (base CIDR)
+1. **Extract Azure prerequisites** from Terraform config (only include items that are actually referenced in this repository's Terraform code — do not include ALZ-specific items like billing scopes, management groups, hub VNets, or CIDR allocation unless the code explicitly requires them):
+   - Terraform state storage (resource group, storage account, container) — if an Azure backend is configured
+   - Required Azure RBAC roles for any service principals referenced
+   - Any Azure resources that must pre-exist before `terraform apply` (e.g. subscriptions, resource groups, VNets)
+   - Address space allocation — only if the Terraform config manages networking
 
-2. **Extract GitHub secrets** from workflow files:
-   - `AZURE_CLIENT_ID_PLAN` — What identity, what role, what scope
-   - `AZURE_CLIENT_ID_APPLY` — What identity, what role, what scope
-   - `AZURE_SUBSCRIPTION_ID` — Management subscription
-   - Any other secrets referenced in workflows
+2. **Extract GitHub secrets and variables** from workflow files:
+   - Scan all `.yml` and `.md` workflow files for `${{ secrets.* }}` references — document each as a required GitHub Actions secret
+   - Scan all `.yml` and `.md` workflow files for `${{ vars.* }}` references — document each as a required GitHub Actions variable (distinguish between org-level and repo-level based on where the variable is expected to be set)
    - **Agentic Workflow secrets** (see [Agentic Workflow Secrets](#agentic-workflow-secrets) section above):
      - Any `GH_AW_*` secret found in `.md` workflow frontmatter
 
 3. **Extract GitHub configuration requirements:**
-   - Repository environments (e.g., `production`) and their protection rules
+   - Repository environments — scan workflow files for **all** `environment:` references (e.g. `production`, `github-admin`, `copilot`), not just `production`. Also scan Terraform code for `github_repository_environment` resources that create environments programmatically.
    - Required repository permissions (`id-token: write` for OIDC)
    - Branch protection rules implied by workflow triggers
    - Reusable workflow access (org-level workflow sharing)
-   - Whether the reusable workflow repository (e.g. `<source-org>/.github-workflows`) needs to be created or already exists in the target org
+   - Whether the reusable workflow repository (e.g. `<source-org>/shared-assets`) needs to exist in the target org
    - Whether private Terraform modules (sourced via `github.com/<source-org>/...`) need to be forked into the target org
 
-4. **Extract OIDC/Identity requirements:**
-   - Azure AD App Registrations or Managed Identities needed
-   - Federated credential configuration for GitHub OIDC
-   - Trust policies (issuer, subject, audience)
-   - Separate identities for plan vs apply (least-privilege model)
+4. **Extract provider authentication requirements:**
+   - For each Terraform provider, document the authentication method and what must be created externally
+   - For OIDC (Azure): App Registrations, federated credential configuration, trust policies
+   - For GitHub App (`app_auth`): App creation in target org, installation, App ID + Installation ID + PEM key
+   - For any token-based auth: what token, what scopes, where it comes from
+   - Separate identities for plan vs apply (if applicable, based on the actual workflow design)
 
-5. **Extract network requirements:**
+5. **Extract Terraform sensitive variable requirements:**
+   - Scan `variables.tf` for all variables with `sensitive = true`
+   - For each, document: variable name, what it feeds (which resource), and how it should be provided at apply time
+   - If the reusable workflow passes these as `TF_VAR_*` environment variables, document that mechanism
+
+6. **Extract network requirements** (only if the Terraform config manages networking):
    - Base CIDR allocation
    - Hub VNet for peering
    - DNS configuration
@@ -387,74 +419,71 @@ Artifact: docs/analysis.md
 # Prerequisites Reference
 
 ## Azure Requirements
+(Only include sections that are relevant to this repository's Terraform configuration.
+Do not include ALZ-specific sections like billing scopes, management groups, or hub VNets
+unless the code explicitly requires them.)
 
-### Subscriptions & Billing
-| Requirement | Detail | How to Obtain |
-|-------------|--------|---------------|
-| Billing Scope | EA or MCA billing scope ID | Azure Portal → Cost Management → Billing scopes |
-| Management Subscription | For Terraform state storage | Existing or new subscription |
-
-### Azure AD / Entra ID
-| Requirement | Detail |
-|-------------|--------|
-| App Registration (Plan) | Reader role, scoped to management group |
-| App Registration (Apply) | Owner role, scoped to management group + billing |
-| Federated Credentials | GitHub OIDC trust for this repository |
-
-### Infrastructure
+### State Storage (if Azure backend is configured)
 | Resource | Configuration | Purpose |
 |----------|---------------|---------|
-| Resource Group | rg-terraform-state | Terraform state storage |
-| Storage Account | stterraformstate | State file backend |
-| Storage Container | alz-subscriptions | State container |
-| Hub VNet | [resource ID] | Spoke peering target |
-| Management Group | Corp | Landing zone association |
+| [from backend config] | [actual values or placeholders] | Terraform state |
 
-### Network
-| Setting | Value | Notes |
-|---------|-------|-------|
-| Base Address Space | 10.100.0.0/16 | Auto-allocation pool for spoke VNets |
+### Identity & Access
+| Requirement | Detail |
+|-------------|--------|
+| [from provider auth analysis] | [role, scope, auth method] |
+
+### Infrastructure (only if pre-existing resources are required)
+| Resource | Configuration | Purpose |
+|----------|---------------|---------|
+| [only resources that must exist before apply] | | |
 
 ## GitHub Requirements
 
 ### Repository Secrets
 | Secret Name | Purpose | Value Source |
 |-------------|---------|-------------|
-| AZURE_CLIENT_ID_PLAN | OIDC auth for terraform plan | Azure AD App Registration |
-| AZURE_CLIENT_ID_APPLY | OIDC auth for terraform apply | Azure AD App Registration |
-| AZURE_TENANT_ID | Azure AD tenant identifier | Azure Portal |
-| AZURE_SUBSCRIPTION_ID | Management subscription | Azure Portal |
+| [from ${{ secrets.* }} scan in workflows] | | |
+
+### Repository Variables
+| Variable Name | Purpose | Scope | Value Source |
+|---------------|---------|-------|-------------|
+| [from ${{ vars.* }} scan in workflows] | | Org / Repo | |
+
+### Environments
+| Environment | Referenced By | Purpose |
+|-------------|---------------|---------|
+| [from environment: references in workflows + github_repository_environment resources] | [workflow file] | |
+
+### Provider Authentication
+| Provider | Auth Method | What to Create |
+|----------|------------|----------------|
+| [from provider.tf analysis] | [OIDC / GitHub App / Token] | [step-by-step] |
 
 ### Repository Configuration
 | Setting | Value | Why |
 |---------|-------|-----|
-| Environment: production | Required reviewers, branch protection | Deployment gate |
-| Permissions: id-token | write | OIDC token exchange |
-| Reusable workflows | Access to nathlan/.github-workflows | Centralized CI/CD |
+| [from workflow analysis] | | |
 
-### OIDC Federation Setup
-[Step-by-step for configuring federated credentials]
+## Terraform Sensitive Variables
+Variables that require values at apply time (not stored in tfvars):
+| Variable | Feeds Resource | How to Provide |
+|----------|---------------|----------------|
+| [from variables.tf sensitive = true] | [resource it feeds] | `-var`, `.auto.tfvars`, or `TF_VAR_` env var |
 
 ## Checklist
-- [ ] Azure billing scope obtained
-- [ ] Management group hierarchy created
-- [ ] Terraform state storage provisioned
-- [ ] Hub VNet deployed (or decided to skip peering)
-- [ ] Azure AD App Registrations created (plan + apply)
-- [ ] Federated credentials configured for GitHub OIDC
-- [ ] GitHub repository secrets configured
-- [ ] GitHub environment "production" created with protection rules
-- [ ] Access to reusable workflows granted
-- [ ] Base address space allocated (no overlap with existing networks)
+(Generate dynamically based on what was actually found in the analysis — do not use a fixed checklist.
+Include items for: state storage, identity/auth, GitHub secrets, GitHub variables, environments,
+provider auth, sensitive variables, reusable workflow access, and migration steps.)
 
 ## Migration Checklist
-- [ ] Replace source org name (`nathlan`) with `<YOUR_GITHUB_ORG>` in `terraform/terraform.tfvars` (`github_organization`)
-- [ ] Fork or mirror private Terraform module(s) into target org (see External Dependencies table)
-- [ ] Create or confirm `.github-workflows` repository exists in target org
-- [ ] Update `terraform/main.tf` module source to reference target org
-- [ ] Update `.github/workflows/terraform-deploy.yml` `uses:` reference to point to target org's reusable workflow
+- [ ] Replace source org name (`nathlan`) with `<YOUR_GITHUB_ORG>` in all files listed in the Org-Specific Strings table
+- [ ] Fork or mirror private Terraform module(s) into target org (if any — see External Dependencies table)
+- [ ] Create or confirm reusable workflow repository exists in target org (if referenced)
+- [ ] Update reusable workflow `uses:` references to point to target org
 - [ ] Update any agent files that reference the source org
-- [ ] Update `github_organization` variable in `terraform.tfvars` to target org
+- [ ] Create GitHub App in target org (if `app_auth` is used) and update credentials
+- [ ] Update all `${{ vars.* }}` references with values for the new org
 ```
 
 ### After Step 2
@@ -511,13 +540,14 @@ Artifact: docs/SETUP.md
 
 **Requirements for the document:**
 - Follow the Diátaxis **Explanation** format (understanding-oriented)
-- Cover:
-  - Map-based architecture pattern (single tfvars, one module call)
-  - Landing zone lifecycle (request → PR → merge → deploy → outputs)
-  - Terraform module design and what it provisions — including the full module chain: private wrapper module → public Azure Verified Modules (AVM)
+- Cover (include only items that are relevant to this repository — not all items apply to every repo):
+  - Map-based architecture pattern (single tfvars, one module call) — if applicable
+  - Landing zone lifecycle (request → PR → merge → deploy → outputs) — if applicable
+  - Terraform module design and what it provisions — including the full module chain if private wrapper modules are used: private wrapper module → public Azure Verified Modules (AVM)
+  - Terraform resource design — if the repo manages resources directly (e.g. GitHub provider resources) rather than calling modules, describe the resource patterns and how they're parameterised
   - State management approach (single state file)
-  - OIDC authentication model (dual identity, plan vs apply)
-  - Address space auto-calculation
+  - Authentication model — describe ALL provider auth methods (OIDC, GitHub App `app_auth`, tokens, etc.), not just OIDC. If dual identities are used (plan vs apply), explain the separation.
+  - Address space auto-calculation — if the repo manages networking
   - CI/CD pipeline flow (reusable workflow pattern)
   - Agent-assisted workflow — document all **three agent component types** using the bracketed taxonomy:
     - `[Local agent]`: The VS Code prompt + agent pair. Use the actual prompt command from frontmatter `name:` field (e.g. `/alz-vending-machine`, NOT `/alz-vending`). Reference both the `.prompt.md` and `.agent.md` file paths.
@@ -613,9 +643,17 @@ Artifacts: README.md, docs/SETUP.md, docs/ARCHITECTURE.md, docs/analysis.md, doc
 - **Always**: Read prompt file frontmatter to get the actual VS Code `/` command name (e.g. `/alz-vending-machine`) — never assume it matches the filename
 - **Always**: Include the Migration Checklist in `docs/prerequisites.md`
 - **Always**: Parse agentic workflow `.md` frontmatter for `${{ secrets.GH_AW_* }}` references and document each as a required secret
+- **Always**: Scan workflow files for both `${{ secrets.* }}` AND `${{ vars.* }}` references — variables are prerequisites just like secrets
+- **Always**: Scan `variables.tf` for `sensitive = true` variables and document how each must be provided at apply time
+- **Always**: Scan Terraform resources for secrets/variables being **created** (e.g. `github_actions_organization_secret`) — document their input values as prerequisites
+- **Always**: Read `provider.tf` to identify provider authentication methods (OIDC, GitHub App, token, etc.) and document what must be created externally
+- **Always**: Scan workflow files for **all** `environment:` references — do not assume only `production` exists
+- **Always**: Generate the prerequisites checklist dynamically from what was actually found in the code — do not use a fixed ALZ-specific checklist
 - **Ask first**: Skipping steps, generating partial docs, changing output locations
 - **Never**: Fabricate configuration values, skip the analysis step, write docs without reading the source
 - **Never**: Use the source org name (e.g. `nathlan`) as if it is the target org in generated documentation
 - **Never**: Describe a private GitHub-hosted Terraform module as if it is a public Terraform Registry module
 - **Never**: Skip `.md` files in `.github/workflows/` during codebase scanning — these are GitHub Agentic Workflow definitions containing critical configuration
 - **Never**: Use a prompt filename (e.g. `alz-vending`) as the prompt command name — always read the frontmatter `name:` field
+- **Never**: Hardcode ALZ-specific prerequisites (billing scopes, management groups, hub VNets, CIDR allocation) unless the repository's Terraform code explicitly requires them
+- **Never**: Assume `production` is the only GitHub environment — always scan for all environment references
