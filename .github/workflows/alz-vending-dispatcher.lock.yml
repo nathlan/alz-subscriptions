@@ -1101,6 +1101,7 @@ jobs:
           if-no-files-found: ignore
 
   pre_activation:
+    if: contains(github.event.issue.labels.*.name, 'alz-vending')
     runs-on: ubuntu-slim
     outputs:
       activated: ${{ steps.check_membership.outputs.is_team_member == 'true' }}

@@ -85,7 +85,7 @@ These tools are injected by the safe-outputs runtime. They are the ONLY way to p
 
 ## Scope
 
-This workflow ONLY handles issues with the `alz-vending` label. If the triggering issue does not have the `alz-vending` label, use `noop` to log that no action was taken and stop.
+This workflow ONLY handles issues with the `alz-vending` label. A workflow-level guard in `pre_activation` (`if: contains(github.event.issue.labels.*.name, 'alz-vending')`) causes the entire pipeline to exit immediately—before the Copilot agent is invoked—when the triggering issue does not carry that label. This prevents unnecessary agent runs and no-op noise on unrelated issues.
 
 ---
 
