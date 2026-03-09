@@ -234,4 +234,42 @@ landing_zones = {
       repository = "alz-vartika-test"
     }
   }
+
+  nathans-test = {
+    workload = "nathans"
+    env      = "test"
+    team     = "dev-team"
+    location = "australiaeast"
+
+    subscription_tags = {
+      cost_center = "CC-1245"
+      owner       = "dev-team"
+    }
+
+    # Virtual network with subnets
+    spoke_vnet = {
+      ipv4_address_spaces = {
+        default_address_space = {
+          vnet_address_space_prefix = "/24"
+          subnets = {
+            workload = {
+              subnet_prefixes = ["/29"]
+            }
+          }
+        }
+      }
+    }
+
+    # Budget with notifications
+    budget = {
+      monthly_amount             = 500
+      alert_threshold_percentage = 80
+      alert_contact_emails       = ["team@email.com"]
+    }
+
+    # GitHub OIDC federated credentials
+    federated_credentials_github = {
+      repository = "alz-nathans"
+    }
+  }
 }
