@@ -14,7 +14,7 @@ network:
     - github
 tools:
   github:
-    github-token: ${{ secrets.GH_AW_GITHUB_TOKEN }}
+    github-token: ${{ secrets.GH_AW_AGENT_TOKEN }}
     toolsets: [issues, repos]
 engine:
   id: copilot
@@ -29,7 +29,7 @@ safe-outputs:
     target: "triggering"
     max: 1
   create-issue:
-    target-repo: "nathlan/github-config"
+    target-repo: "insight-agentic-platform-project/github-config"
     title-prefix: "feat: "
     labels: [automation, github-config]
     max: 1
@@ -41,7 +41,7 @@ You are a dispatcher that handles Copilot agent assignment for Azure Landing Zon
 
 ## Tool Usage
 
-You have two sets of tools. **Use ONLY these tools!** Do NOT use the `gh` CLI, `curl`, direct API calls, or any other method.
+You have two sets of tools. **Use ONLY these tools.** Do NOT use the `gh` CLI, `curl`, direct API calls, or any other method.
 
 ### Phase 1 — Read with GitHub MCP Server Tools
 
@@ -66,7 +66,7 @@ These tools are injected by the safe-outputs runtime. They are the ONLY way to p
 
 - `assign_to_agent` — Assign the `alz-vending` Copilot coding agent to an issue. Provide `issue_number`.
 - `add_comment` — Post a comment on the triggering issue. Provide `body` (markdown text). Omit `item_number` to target the triggering issue.
-- `create_issue` — Create a new issue (configured to target `nathlan/github-config`). Provide `title` and `body`.
+- `create_issue` — Create a new issue (configured to target `insight-agentic-platform-project/github-config`). Provide `title` and `body`.
 - `noop` — Log a transparency message when no action is needed. Provide `message`.
 
 ### Important
@@ -99,7 +99,7 @@ This workflow ONLY handles issues with the `alz-vending` label. If the triggerin
    - `agent`: `copilot`
    - `issue_number`: The triggering issue number
 
-   The `alz-vending` custom agent is configured in frontmatter — Copilot will automatically route to the [alz-vending.agent.md](https://github.com/nathlan/alz-subscriptions/blob/main/.github/agents/alz-vending.agent.md) agent file.
+   The `alz-vending` custom agent is configured in frontmatter — Copilot will automatically route to the [alz-vending.agent.md](https://github.com/insight-agentic-platform-project/alz-subscriptions/blob/main/.github/agents/alz-vending.agent.md) agent file.
 
 **Do NOT create issues or post comments on opened events.**
 
@@ -113,21 +113,19 @@ This workflow ONLY handles issues with the `alz-vending` label. If the triggerin
 
 1. **Read the issue**: Call `issue_read` to get the full details of issue #${{ github.event.issue.number }}, including labels, body, and the original author.
 2. **Check label**: If the issue does NOT have the `alz-vending` label, use `noop` to log: `"Issue #<number> is not an ALZ vending issue (missing alz-vending label). Skipping."` — **Stop here.**
-3. **Identify the requester**: Extract the GitHub username from the **`Requested By`** row in the issue body table (e.g. `| Requested By | @username |`). This is the person to notify — do NOT use the issue author.
+3. **Identify the requester**: The original issue author is the person to notify.
 4. **Check for a linked PR**: Use `search_pull_requests` or `list_pull_requests` to look for a pull request that closed this issue.
 
 ### Step 2: Notify and Hand Off
 
 1. **Post a completion comment** using `add_comment`:
 
-   > **Important**: The `@mention` MUST be a plain GitHub mention (e.g. @username). Do NOT wrap it in backticks or any other formatting — doing so will prevent GitHub from sending a notification to the user.
-
 ```
-👋 @username — your landing zone request has been completed.
+👋 @{original_author} — your landing zone request has been completed.
 
 {If a linked PR exists: "Merged via #PR_NUMBER."}
 
-Your Azure Landing Zone is now being deployed. A workload repository will be provisioned automatically in `nathlan/github-config` — you'll be notified there once it's ready.
+Your Azure Landing Zone is now being deployed. A workload repository will be provisioned automatically in `insight-agentic-platform-project/github-config` — you'll be notified there once it's ready.
 ```
 
 2. **Extract landing zone details from the closed issue body**. The issue body (created by the `alz-vending` agent) contains structured data. Extract:
@@ -137,7 +135,7 @@ Your Azure Landing Zone is now being deployed. A workload repository will be pro
    - **environment** (e.g., `Production (prod)`)
    - **location** (e.g., `uksouth`)
 
-3. **Create an issue in `nathlan/github-config`** using `create_issue` with:
+3. **Create an issue in `insight-agentic-platform-project/github-config`** using `create_issue` with:
 
    **Title**: `Create workload repository — {repository_name}`
 
@@ -146,7 +144,7 @@ Your Azure Landing Zone is now being deployed. A workload repository will be pro
    ```
    ## Workload Repository Request
 
-   This issue was automatically created by the alz-vending-dispatcher after a landing zone was provisioned in `nathlan/alz-subscriptions`.
+   This issue was automatically created by the alz-vending-dispatcher after a landing zone was provisioned in `insight-agentic-platform-project/alz-subscriptions`.
 
    ## Configuration Details
 
@@ -159,7 +157,7 @@ Your Azure Landing Zone is now being deployed. A workload repository will be pro
    | **Workload** | {workload} |
    | **Environment** | {environment} |
    | **Required Approving Reviews** | 1 |
-   | **Source Issue** | nathlan/alz-subscriptions#{issue_number} |
+   | **Source Issue** | insight-agentic-platform-project/alz-subscriptions#{issue_number} |
 
    ## Instructions
 

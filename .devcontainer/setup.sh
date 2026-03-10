@@ -26,15 +26,14 @@ echo "pre-commit version: $(pre-commit --version)"
 echo "Initializing TFLint..."
 tflint --init
 
-# Install pre-commit hooks
-echo "Installing pre-commit hooks..."
-pre-commit install
-
 # Create Terraform plugin cache directory
 PLUGIN_CACHE_DIR="${PWD}/.terraform.d/plugin-cache"
 mkdir -p "${PLUGIN_CACHE_DIR}"
 echo "Created Terraform plugin cache directory: ${PLUGIN_CACHE_DIR}"
 
+# Install gh-aw
+echo "Installing GitHub Agentic Workflows (gh-aw)..."
+curl -fsSL https://raw.githubusercontent.com/github/gh-aw/refs/heads/main/install-gh-aw.sh | bash -s v0.50.1
 echo "Development environment setup complete!"
 echo ""
 echo "Available tools:"

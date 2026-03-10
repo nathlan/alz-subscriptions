@@ -1,8 +1,25 @@
 {
-	"servers": {
-		"github": {
+  "servers": {
+    "github-agentic-workflows": {
+      "command": "gh",
+      "args": [
+        "aw",
+        "mcp-server"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    "github": {
 			"type": "http",
 			"url": "https://api.githubcopilot.com/mcp/x/all"
-		}
-	}
+		},
+    "terraform": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "hashicorp/terraform-mcp-server:0.4.0"
+      ]
+    }
+  }
 }

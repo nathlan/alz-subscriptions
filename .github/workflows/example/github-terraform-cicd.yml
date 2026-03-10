@@ -1,0 +1,452 @@
+name: GitHub Terraform CI/CD
+
+# ============================================================================
+# STANDALONE WORKFLOW — GitHub Terraform CI/CD
+# ============================================================================
+#
+# Self-contained CI/CD pipeline for Terraform configurations using the GitHub
+# provider, with Azure Storage Account as the state backend.
+#
+# This workflow is standalone (not a reusable workflow caller) because the
+# shared-assets repo that previously hosted the reusable workflow is itself
+# managed by this repo — creating a circular dependency.
+#
+# ============================================================================
+# AUTHENTICATION MODEL
+# ============================================================================
+#
+# This workflow uses TWO separate authentication mechanisms.
+#
+# 1. TFSTATE BACKEND — Azure Managed Identity with Federated Credential
+#    - Used for: terraform init (backend state read/write/lock)
+#    - Permission: Storage Blob Data Contributor on the state container
+#    - Auth: OIDC via federated credential on a managed identity.
+#    - Federated credential subject: repo:nathlan/github-config:environment:prod
+#      Jobs that need OIDC must specify `environment: prod` so the token
+#      subject matches the federated credential.
+#    - Var: AZURE_CLIENT_ID_TFSTATE — Managed identity client ID
+#    - Reference: https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation
+#
+# 2. PROVIDER (GitHub) — GitHub App with app_auth
+#    - Used for: all Terraform GitHub provider operations (repos, teams, etc.)
+#    - Secret: GH_CONFIG_PRIVATE_KEY (PEM)
+#    - Vars: GH_CONFIG_APP_ID, GH_CONFIG_INSTALLATION_ID
+#
+# REQUIRED VARS:
+# ----------------------------------------------------------
+# Organisation-level vars (set once at org level, inherited by all repos):
+#   AZURE_CLIENT_ID_TFSTATE       — App Registration client ID for state access
+#   AZURE_SUBSCRIPTION_ID_TFSTATE — Azure subscription ID for Terraform state backend
+#   AZURE_TENANT_ID               — Azure AD tenant ID
+#   BACKEND_STORAGE_ACCOUNT       — Storage account name for Terraform state
+#   BACKEND_CONTAINER             — Blob container name for Terraform state
+#
+# Repository-level vars (set in this repo's Settings > Variables):
+#   GH_CONFIG_ORG             — GitHub organization name
+#   GH_CONFIG_APP_ID          — GitHub App ID
+#   GH_CONFIG_INSTALLATION_ID — GitHub App Installation ID
+#
+# SECRETS:
+#   GH_CONFIG_PRIVATE_KEY                        — GitHub App Private Key (PEM format) [repo-level]
+#   COPILOT_GITHUB_TOKEN                         — PAT for Copilot coding agent API access [org-level]
+#   COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN     — PAT for Copilot MCP server [org-level]
+#
+# Secret values are passed as a single JSON map:
+#   TF_VAR_secret_values = '{"SECRET_NAME":"value", ...}'
+# ============================================================================
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/github-terraform-cicd.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/github-terraform-cicd.yml'
+  workflow_dispatch:
+    inputs:
+      terraform_action:
+        description: 'Terraform action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+
+concurrency:
+  group: terraform-github-config-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+  issues: write
+
+env:
+  WORKING_DIRECTORY: terraform
+  ENVIRONMENT: prod
+
+jobs:
+  # ============================================================================
+  # Job 1: Validate — Terraform formatting, validation, and linting
+  # ============================================================================
+  validate:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: Terraform Format Check
+        id: fmt
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Init
+        id: init
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        id: validate
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: terraform validate -no-color
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: TFLint Init
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Run TFLint
+        id: tflint
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: tflint --format=compact
+        continue-on-error: true
+
+      - name: Comment Validation Results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = `#### Terraform Format and Style 🖌 \`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️ \`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖 \`${{ steps.validate.outcome }}\`
+            #### TFLint 📖 \`${{ steps.tflint.outcome }}\`
+
+            *Pusher: @${{ github.actor }}, Working Directory: \`${{ env.WORKING_DIRECTORY }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Fail if validation failed
+        if: steps.fmt.outcome == 'failure' || steps.init.outcome == 'failure' || steps.validate.outcome == 'failure'
+        run: |
+          echo "::error::Validation failed. Please fix the errors above."
+          exit 1
+
+  # ============================================================================
+  # Job 2: Security — Checkov security scanning
+  # ============================================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Checkov
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install checkov
+
+      - name: Run Checkov
+        id: checkov
+        run: |
+          CONFIG_FILE=""
+          if [ -f "${{ env.WORKING_DIRECTORY }}/checkov.yml" ]; then
+            CONFIG_FILE="--config-file ${{ env.WORKING_DIRECTORY }}/checkov.yml"
+          elif [ -f "${{ env.WORKING_DIRECTORY }}/.checkov.yml" ]; then
+            CONFIG_FILE="--config-file ${{ env.WORKING_DIRECTORY }}/.checkov.yml"
+          fi
+          checkov --directory ${{ env.WORKING_DIRECTORY }} $CONFIG_FILE
+
+      - name: Comment Security Results on PR
+        if: github.event_name == 'pull_request' && (success() || failure())
+        uses: actions/github-script@v7
+        env:
+          CHECKOV_OUTCOME: ${{ steps.checkov.outcome }}
+        with:
+          script: |
+            const checkovOutcome = process.env.CHECKOV_OUTCOME;
+            const output = `#### Security Scan (Checkov) \`${checkovOutcome}\`
+
+            ${checkovOutcome === 'failure' ? '⚠️ Security issues found. Review workflow logs for details.' : '✅ No security issues found.'}
+
+            *For details, see the workflow run logs.*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+  # ============================================================================
+  # Job 3: Plan — Generate Terraform plan on the runner
+  # ============================================================================
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    needs: [validate, security]
+    environment: prod
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      # ----------------------------------------------------------------
+      # Backend auth: credentials passed via -backend-config so they are
+      # persisted in .terraform/ and used for ALL subsequent state
+      # operations, independent of TF_VAR_* env vars set for the provider.
+      # ----------------------------------------------------------------
+      - name: Initialize Terraform using `tfstate` identity
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          terraform init \
+            -backend-config="storage_account_name=${{ vars.BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.BACKEND_CONTAINER }}" \
+            -backend-config="key=github.tfstate" \
+            -backend-config="client_id=${{ vars.AZURE_CLIENT_ID_TFSTATE }}" \
+            -backend-config="tenant_id=${{ vars.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID_TFSTATE }}" \
+            -backend-config="use_oidc=true" \
+            -backend-config="use_azuread_auth=true"
+
+      # ----------------------------------------------------------------
+      # Workspace: select or create. Uses repository name as workspace.
+      # ----------------------------------------------------------------
+      - name: Select or Create Terraform Workspace
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          WORKSPACE="${{ github.event.repository.name }}"
+          echo "Selecting workspace: ${WORKSPACE}"
+          terraform workspace select "${WORKSPACE}" 2>/dev/null || terraform workspace new "${WORKSPACE}"
+
+      # ----------------------------------------------------------------
+      # Provider auth & org-level secrets: TF_VAR_* env vars override the
+      # empty placeholders in terraform.tfvars with real values sourced
+      # from GitHub Actions vars and secrets on the runner.
+      # ----------------------------------------------------------------
+      - name: Terraform Plan
+        id: plan
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          terraform plan -no-color -out=tfplan -lock-timeout=300s
+          terraform show -no-color tfplan > plan.txt
+        env:
+          # Provider authentication (GitHub App)
+          TF_VAR_github_owner: "${{ vars.GH_CONFIG_ORG }}"
+          TF_VAR_github_app_id: "${{ vars.GH_CONFIG_APP_ID }}"
+          TF_VAR_github_app_installation_id: "${{ vars.GH_CONFIG_INSTALLATION_ID }}"
+          TF_VAR_github_app_pem_file: "${{ secrets.GH_CONFIG_PRIVATE_KEY }}"
+          # Organisation-level + environment-level secret values (single map)
+          TF_VAR_secret_values: '{"COPILOT_GITHUB_TOKEN":"${{ secrets.COPILOT_GITHUB_TOKEN }}","COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN":"${{ secrets.COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN }}"}'
+
+      - name: Save Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-${{ env.ENVIRONMENT }}
+          path: |
+            ${{ env.WORKING_DIRECTORY }}/tfplan
+            ${{ env.WORKING_DIRECTORY }}/plan.txt
+          retention-days: 30
+
+      - name: Comment Plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const planPath = '${{ env.WORKING_DIRECTORY }}/plan.txt';
+            const plan = fs.readFileSync(planPath, 'utf8');
+            const maxLength = 65000;
+            const truncatedPlan = plan.length > maxLength
+              ? plan.substring(0, maxLength) + '\n\n... (truncated)'
+              : plan;
+
+            const output = `#### Terraform Plan 📖 for Environment: \`${{ env.ENVIRONMENT }}\`
+            <details><summary>Show Plan</summary>
+
+            \`\`\`terraform
+            ${truncatedPlan}
+            \`\`\`
+
+            </details>
+
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.WORKING_DIRECTORY }}\`*`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const botComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('Terraform Plan 📖')
+            });
+
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: output
+              });
+            } else {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              });
+            }
+
+  # ============================================================================
+  # Job 4: Apply — Deploy with approval gate
+  # ============================================================================
+  apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: plan
+    if: |
+      !(github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'plan') &&
+      (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    environment: prod
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan-${{ env.ENVIRONMENT }}
+          path: ${{ env.WORKING_DIRECTORY }}
+
+      # ----------------------------------------------------------------
+      # Backend auth: same pattern as plan job — persist TFSTATE identity
+      # credentials via -backend-config.
+      # ----------------------------------------------------------------
+      - name: Initialize Terraform using `tfstate` identity
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          terraform init \
+            -backend-config="storage_account_name=${{ vars.BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.BACKEND_CONTAINER }}" \
+            -backend-config="key=github.tfstate" \
+            -backend-config="client_id=${{ vars.AZURE_CLIENT_ID_TFSTATE }}" \
+            -backend-config="tenant_id=${{ vars.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID_TFSTATE }}" \
+            -backend-config="use_oidc=true" \
+            -backend-config="use_azuread_auth=true"
+
+      - name: Select or Create Terraform Workspace
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          WORKSPACE="${{ github.event.repository.name }}"
+          echo "Selecting workspace: ${WORKSPACE}"
+          terraform workspace select "${WORKSPACE}" 2>/dev/null || terraform workspace new "${WORKSPACE}"
+
+      - name: Terraform Apply
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: terraform apply -auto-approve tfplan
+        env:
+          # Provider authentication (GitHub App)
+          TF_VAR_github_owner: "${{ vars.GH_CONFIG_ORG }}"
+          TF_VAR_github_app_id: "${{ vars.GH_CONFIG_APP_ID }}"
+          TF_VAR_github_app_installation_id: "${{ vars.GH_CONFIG_INSTALLATION_ID }}"
+          TF_VAR_github_app_pem_file: "${{ secrets.GH_CONFIG_PRIVATE_KEY }}"
+          # Organisation-level + environment-level secret values (single map)
+          TF_VAR_secret_values: '{"COPILOT_GITHUB_TOKEN":"${{ secrets.COPILOT_GITHUB_TOKEN }}","COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN":"${{ secrets.COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN }}"}'
+
+      - name: Terraform Output
+        id: output
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: terraform output -json > outputs.json
+        env:
+          # Provider authentication (GitHub App)
+          TF_VAR_github_owner: "${{ vars.GH_CONFIG_ORG }}"
+          TF_VAR_github_app_id: "${{ vars.GH_CONFIG_APP_ID }}"
+          TF_VAR_github_app_installation_id: "${{ vars.GH_CONFIG_INSTALLATION_ID }}"
+          TF_VAR_github_app_pem_file: "${{ secrets.GH_CONFIG_PRIVATE_KEY }}"
+          # Organisation-level + environment-level secret values (single map)
+          TF_VAR_secret_values: '{"COPILOT_GITHUB_TOKEN":"${{ secrets.COPILOT_GITHUB_TOKEN }}","COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN":"${{ secrets.COPILOT_MCP_GITHUB_PERSONAL_ACCESS_TOKEN }}"}'
+
+      - name: Upload Outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-outputs-${{ env.ENVIRONMENT }}
+          path: ${{ env.WORKING_DIRECTORY }}/outputs.json
+          retention-days: 30
+
+      - name: Comment Apply Success
+        if: success() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = `#### Terraform Apply ✅
+
+            Successfully deployed to environment: \`${{ env.ENVIRONMENT }}\`
+
+            **Deployment Details:**
+            - Deployed by: @${{ github.actor }}
+            - Commit: \`${{ github.sha }}\`
+
+            Outputs have been saved as an artifact.`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });

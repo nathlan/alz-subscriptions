@@ -41,6 +41,26 @@ Master orchestrator for generating portable, client-ready repository documentati
 > Do NOT generate any documentation until you have completed Step 1 (Codebase Analysis).
 > Every claim in the documentation must be traceable to actual files in the repository.
 
+## Excluded Files (Documentation Tooling)
+
+The following files are the documentation agent's own tooling. They **must** be
+excluded from all scans, repository structure trees, agent component tables, and
+generated documentation:
+
+- `.github/agents/documentation-conductor.agent.md`
+- `.github/agents/se-technical-writer.agent.md`
+- `.github/prompts/generate-documentation.prompt.md`
+- `.github/prompts/documentation-writer.prompt.md`
+- `.github/prompts/architecture-blueprint-generator.prompt.md`
+- `.github/prompts/readme-blueprint-generator.prompt.md`
+- `.github/instructions/markdown.instructions.md`
+
+These files exist in the repository but are not part of the repository's
+functional agent architecture. Do not list them in repo structure trees, agent
+tables, prompt tables, or any other inventory section.
+
+---
+
 ## Purpose
 
 This conductor agent produces documentation that answers one critical question:
@@ -204,6 +224,7 @@ Never assume the prompt command matches the filename. Always cite the frontmatte
 | Add a Migration Checklist section to prerequisites.md | Omit org-migration steps from the checklist |
 | Use the three-tier agent taxonomy (`[Local agent]`, `[Agentic Workflow]`, `[Cloud coding agent]`) | Collapse agents into a two-tier "local" / "cloud" model |
 | Distinguish `.lock.yml` (compiled) from `.md` (definition) for Agentic Workflows | Treat `.lock.yml` and `.md` as the same thing |
+| Exclude documentation-tooling files listed in the Excluded Files section | Include the conductor's own agent/prompt files in generated docs |
 
 ## The 5-Step Workflow
 

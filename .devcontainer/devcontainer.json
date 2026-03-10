@@ -38,7 +38,7 @@
       "settings": {
         "githubPullRequests.codingAgent.uiIntegration": true,
         "terraform.languageServer.enable": true,
-        "python.defaultInterpreterPath": "/usr/local/bin/python3",
+        "python.defaultInterpreterPath": "/usr/local/python/current/bin/python",
         "python.formatting.provider": "black",
         "python.linting.enabled": true,
         "python.linting.pylintEnabled": true,
